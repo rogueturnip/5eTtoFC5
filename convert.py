@@ -737,6 +737,8 @@ for file in args.inputJSON:
                             insertpoint = 0
                             for e in v:
                                 if "data" in e:
+                                    if "overwrite" not in e["data"] and "replace" in e["data"]:
+                                        e["data"]["overwrite"] = e["data"]["replace"]
                                     for en in sr["entries"]:
                                         if type(en) == dict and "name" in en and en["name"] == e["data"]["overwrite"]:
                                             en["name"] = e["name"]
