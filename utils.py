@@ -358,7 +358,7 @@ def modList(items,mod):
     else:
         if mod == "remove":
             del items[:]
-        elif mod['mode'] == "appendArr":
+        elif mod['mode'] == "appendArr" or mod['mode'] == "appendIfNotExistsArr":
             if type(mod["items"]) == list:
                 items.extend(mod["items"])
             else:

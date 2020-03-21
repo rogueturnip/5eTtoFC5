@@ -637,7 +637,7 @@ def parseMonster(m, compendium, args):
             if "isNamedCreature" in m and m['isNamedCreature']:
                 text.text = "{0} can take {1:d} legendary action{2}, choosing from the options below. Only one legendary action can be used at a time and only at the end of another creature's turn. {0} regains spent legendary action{2} at the start of its turn.".format(m['name'].split(' ', 1)[0],len(m['legendary']),"s" if len(m['legendary']) > 1 else "")
             else:
-                text.text = "The {0} can take {1:d} legendary action{2}, choosing from the options below. Only one legendary action can be used at a time and only at the end of another creature's turn. The {0} regains spent legendary action{2} at the start of its turn.".format(m['type'] if type(m['type']) == str else "{} ({})".format(m['type']['type'],", ".join(m['type']['tags'])),len(m['legendary']),"s" if len(m['legendary']) > 1 else "")
+                text.text = "The {0} can take {1:d} legendary action{2}, choosing from the options below. Only one legendary action can be used at a time and only at the end of another creature's turn. The {0} regains spent legendary action{2} at the start of its turn.".format(m['type'] if type(m['type']) == str else "{} ({})".format(m['type']['type'],", ".join(m['type']['tags'])) if 'tags' in m['type'] else m['type']['type'],len(m['legendary']),"s" if len(m['legendary']) > 1 else "")
         for t in m['legendary']:
             legendary = ET.SubElement(monster, 'legendary')
             name = ET.SubElement(legendary, 'name')
