@@ -1062,7 +1062,6 @@ if args.combinedoutput:
         if mwins == 0 and swins == 0 and iwins == 0:
             print ("Nothing to output")
         else:
-            if args.addimgs and os.path.isdir("spells") and swins > 0: shutil.copytree("spells",  os.path.join(args.tempdir,"spells"))
             tree.write(os.path.join(args.tempdir,"compendium.xml"), xml_declaration=True, short_empty_elements=False, encoding='utf-8')
             zipfile = shutil.make_archive(args.combinedoutput,"zip",args.tempdir)
             shutil.move(zipfile,args.combinedoutput)

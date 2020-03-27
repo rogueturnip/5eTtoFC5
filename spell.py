@@ -4,6 +4,8 @@ import re
 import utils
 import json
 import os
+from slugify import slugify
+from shutil import copyfile
 
 def parseSpell(m, compendium, args):
     spell = ET.SubElement(compendium, 'spell')
@@ -24,25 +26,50 @@ def parseSpell(m, compendium, args):
         spell.remove(school)
 
     if args.addimgs and os.path.isdir("./spells/"):
+        if not os.path.isdir(os.path.join(args.tempdir,"spells")):
+            os.mkdir(os.path.join(args.tempdir,"spells"))
         image = ET.SubElement(spell, 'image')
-        if m['school'] == 'E':
-            image.text = "enchantment.png"
-        elif m['school'] == 'V':
-            image.text = "evocation.png"
-        elif m['school'] == 'A':
-            image.text = "abjuration.png"
-        elif m['school'] == 'C':
-            image.text = "conjuration.png"
-        elif m['school'] == 'D':
-            image.text = "divination.png"
-        elif m['school'] == 'I':
-            image.text = "illusion.png"
-        elif m['school'] == 'N':
-            image.text = "necromancy.png"
-        elif m['school'] == 'T':
-            image.text = "transmutation.png"
-        elif m['school'] == 'P':
-            image.text = "psionic.png"
+        if 'image' in m:
+            artworkpath = m['image']
+        else:
+            artworkpath = None
+        slug = slugify(m["name"])
+        spellname = m["original_name"] if "original_name" in m else m["name"]
+        if artworkpath and os.path.isfile("./img/" + artworkpath):
+            artworkpath = "./img/" + artworkpath
+        elif os.path.isfile("./img/spells/" + m["source"] + "/" + spellname + ".jpg"):
+            artworkpath = "./img/spells/" + m["source"] + "/" + spellname + ".jpg"
+        elif os.path.isfile("./img/spells/" + m["source"] + "/" + spellname + ".png"):
+            artworkpath = "./img/spells/" + m["source"] + "/" + spellname + ".png"
+        elif os.path.isfile("./img/" + m["source"] + "/" + spellname + ".png"):
+            artworkpath = "./img/" + m["source"] + "/" + spellname + ".png"
+        if artworkpath is not None:
+            ext = os.path.splitext(artworkpath)[1]
+            copyfile(artworkpath, os.path.join(args.tempdir,"spells",slug + ext))
+            image.text = slug + ext
+        else:
+            if m['school'] == 'E':
+                artworkpath = "enchantment.png"
+            elif m['school'] == 'V':
+                artworkpath = "evocation.png"
+            elif m['school'] == 'A':
+                artworkpath = "abjuration.png"
+            elif m['school'] == 'C':
+                artworkpath = "conjuration.png"
+            elif m['school'] == 'D':
+                artworkpath = "divination.png"
+            elif m['school'] == 'I':
+                artworkpath = "illusion.png"
+            elif m['school'] == 'N':
+                artworkpath = "necromancy.png"
+            elif m['school'] == 'T':
+                artworkpath = "transmutation.png"
+            elif m['school'] == 'P':
+                artworkpath = "psionic.png"
+            if not os.path.isfile(os.path.join(args.tempdir,"spells",artworkpath)):
+                copyfile(os.path.join("spells",artworkpath), os.path.join(args.tempdir,"spells",artworkpath))
+            image.text = artworkpath
+
 
     ritual = ET.SubElement(spell, 'ritual')
     if "meta" in m and "ritual" in m["meta"] and m["meta"]["ritual"]:

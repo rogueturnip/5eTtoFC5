@@ -110,13 +110,16 @@ def parseMonster(m, compendium, args):
     for acs in m['ac']:
         if isinstance(acs, dict):
             if len(acstr) == 0:
-                acstr.append(str(acs['ac']))
+                if 'ac' in acs:
+                    acstr.append(str(acs['ac']))
                 if 'from' in acs and 'condition' in acs:
                     acstr.append(utils.fixTags(", ".join(acs['from']) + " " + acs['condition'],m,True))
                 elif 'from' in acs:
                     acstr.append(utils.fixTags(", ".join(acs['from']),m,True))
                 elif 'condition' in acs:
                     acstr.append(utils.fixTags(acs['condition'],m,True))
+                if 'special' in acs:
+                    acstr.append(utils.fixTags(acs['special'],m,True))
                 continue
             acstr.append(utils.fixTags("{}".format(
                 "{} {}".format(

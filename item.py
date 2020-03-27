@@ -298,6 +298,16 @@ def parseItem(m, compendium, args):
                 artworkpath = "./img/items/" + m["source"] + "/" + itemname + ".png"
             elif os.path.isfile("./img/" + m["source"] + "/" + itemname + ".png"):
                 artworkpath = "./img/" + m["source"] + "/" + itemname + ".png"
+            elif os.path.isfile("./img/" + m["source"] + "/" + itemname + ".jpg"):
+                artworkpath = "./img/" + m["source"] + "/" + itemname + ".jpg"
+            elif os.path.isfile("./img/items/" + "/" + itemname + ".jpg"):
+                artworkpath = "./img/items/" + "/" + itemname + ".jpg"
+            elif os.path.isfile("./img/items/" + "/" + itemname + ".png"):
+                artworkpath = "./img/items/" + "/" + itemname + ".png"
+            elif os.path.isfile("./img/" + "/" + itemname + ".png"):
+                artworkpath = "./img/" + "/" + itemname + ".png"
+            elif os.path.isfile("./img/" + "/" + itemname + ".jpg"):
+                artworkpath = "./img/" + "/" + itemname + ".jpg"
             if artworkpath is not None:
                 ext = os.path.splitext(artworkpath)[1]
                 copyfile(artworkpath, os.path.join(args.tempdir,"items",slug + ext))
