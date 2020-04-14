@@ -264,9 +264,11 @@ def parseMonster(m, compendium, args):
 
     if 'source' in m:
         slug = slugify(m["name"])
-        if args.addimgs and os.path.isdir("img") and not os.path.isfile(os.path.join(args.tempdir,"monsters", slug + ".png")) and not os.path.isfile(os.path.join(args.tempdir,"monsters",slug+".jpg")):
+        if args.addimgs and os.path.isdir("img") and not os.path.isfile(os.path.join(args.tempdir,"monsters", slug + ".png")) and not os.path.isfile(os.path.join(args.tempdir,"monsters",slug+".jpg")) and not os.path.isfile(os.path.join(args.tempdir,"monsters", "token_" + slug + ".png")) and not os.path.isfile(os.path.join(args.tempdir,"monsters", "token_" + slug + ".jpg")):
             if not os.path.isdir(os.path.join(args.tempdir,"monsters")):
                 os.mkdir(os.path.join(args.tempdir,"monsters"))
+            #if not os.path.isdir(os.path.join(args.tempdir,"tokens")):
+            #    os.mkdir(os.path.join(args.tempdir,"tokens"))
             if 'image' in m:
                 artworkpath = m['image']
             else:
@@ -278,20 +280,45 @@ def parseMonster(m, compendium, args):
                 artworkpath = "./img/bestiary/" + m["source"] + "/" + monstername + ".jpg"
             elif os.path.isfile("./img/bestiary/" + m["source"] + "/" + monstername + ".png"):
                 artworkpath = "./img/bestiary/" + m["source"] + "/" + monstername + ".png"
-            elif os.path.isfile("./img/" + m["source"] + "/" + monstername + ".png"):
-                artworkpath = "./img/" + m["source"] + "/" + monstername + ".png"
+            elif os.path.isfile("./img/vehicles/" + m["source"] + "/" + monstername + ".jpg"):
+                artworkpath = "./img/vehicles/" + m["source"] + "/" + monstername + ".jpg"
+            elif os.path.isfile("./img/vehicles/" + m["source"] + "/" + monstername + ".png"):
+                artworkpath = "./img/vehicles/" + m["source"] + "/" + monstername + ".png"
             if artworkpath is not None:
                 ext = os.path.splitext(artworkpath)[1]
                 copyfile(artworkpath, os.path.join(args.tempdir,"monsters",slug + ext))
                 imagetag = ET.SubElement(monster, 'image')
                 imagetag.text = slug + ext
+            if os.path.isfile("./img/" + m["source"] + "/" + monstername + ".png") or os.path.isfile("./img/" + m["source"] + "/" + monstername + ".jpg"):
+                if os.path.isfile("./img/" + m["source"] + "/" + monstername + ".png"):
+                    artworkpath = "./img/" + m["source"] + "/" + monstername + ".png"
+                else:
+                    artworkpath = "./img/" + m["source"] + "/" + monstername + ".jpg"
+                ext = os.path.splitext(artworkpath)[1]
+                copyfile(artworkpath, os.path.join(args.tempdir,"monsters","token_" + slug + ext))
+                imagetag = ET.SubElement(monster, 'token')
+                imagetag.text = slug + ext
+            elif os.path.isfile("./img/vehicles/tokens/" + m["source"] + "/" + monstername + ".png") or os.path.isfile("./img/vehicles/tokens/" + m["source"] + "/" + monstername + ".jpg"):
+                if os.path.isfile("./img/vehicles/tokens/" + m["source"] + "/" + monstername + ".png"):
+                    artworkpath = "./img/vehicles/tokens/" + m["source"] + "/" + monstername + ".png"
+                else:
+                    artworkpath = "./img/vehicles/tokens/" + m["source"] + "/" + monstername + ".jpg"
+                ext = os.path.splitext(artworkpath)[1]
+                copyfile(artworkpath, os.path.join(args.tempdir,"monsters","token_" + slug + ext))
+                imagetag = ET.SubElement(monster, 'token')
+                imagetag.text = "token_" + slug + ext
         elif args.addimgs and os.path.isfile(os.path.join(args.tempdir,"monsters", slug + ".png")):
             imagetag = ET.SubElement(monster, 'image')
             imagetag.text = slug + ".png"
         elif args.addimgs and os.path.isfile(os.path.join(args.tempdir,"monsters", slug + ".jpg")):
             imagetag = ET.SubElement(monster, 'image')
             imagetag.text = slug + ".jpg"
-
+        elif args.addimgs and os.path.isfile(os.path.join(args.tempdir,"monsters", "token_" + slug + ".png")):
+            imagetag = ET.SubElement(monster, 'token')
+            imagetag.text = "token_" + slug + ".png"
+        elif args.addimgs and os.path.isfile(os.path.join(args.tempdir,"monsters", "token_" + slug + ".jpg")):
+            imagetag = ET.SubElement(monster, 'token')
+            imagetag.text = "token_" + slug + ".jpg"
         sourcetext = "{} p. {}".format(
             utils.getFriendlySource(m['source']), m['page']) if 'page' in m and m['page'] != 0 else utils.getFriendlySource(m['source'])
 
@@ -307,8 +334,8 @@ def parseMonster(m, compendium, args):
         #name.text = "Source"
         #text = ET.SubElement(trait, 'text')
         #text.text = sourcetext
-        #srctag = ET.SubElement(monster, 'source')
-        #srctag.text = sourcetext
+        srctag = ET.SubElement(monster, 'source')
+        srctag.text = sourcetext
     else:
         sourcetext = None
 
@@ -901,7 +928,7 @@ def parseMonster(m, compendium, args):
                                                 r['roll']['max']) if 'min' in r['roll'] else str(
                                                 r['roll']['exact']))
                                     else:
-                                        rowthing.append(utils.fixTags(r,m,args.nohtml))
+                                        rowthing.append(utils.fixTags(str(r),m,args.nohtml))
                                 description.text += " | ".join(rowthing) + "\n"
                         elif "entries" in e:
                             subentries = []                    

@@ -371,7 +371,7 @@ for file in args.inputJSON:
                 if args.verbose or args.showdupe:
                     print ("{0} in {1} is duplicate entry for {2} from {3}".format(m['name'],utils.getFriendlySource(m['source']),xmlmon.find('name').text,xmlmon.find('source').text))
                 mdupe += 1
-            if fluff is not None and 'monster' in fluff:
+            if fluff is not None and 'monsterFluff' in fluff:
                 if 'entries' in m:
                     m['entries'] += utils.appendFluff(fluff,m['name'])
                 else:
@@ -410,13 +410,13 @@ for file in args.inputJSON:
                 if args.verbose or args.showdupe:
                     print ("{0} in {1} is duplicate entry for {2} from {3}".format(m['name'],utils.getFriendlySource(m['source']),xmlmon.find('name').text,xmlmon.find('source').text))
                 mdupe += 1
-            if fluff is not None and 'vehicle' in fluff:
+            if fluff is not None and 'vehicleFluff' in fluff:
                 if 'entries' in m:
-                    m['entries'] += utils.appendFluff(fluff,m['name'],'vehicle',args.nohtml)
+                    m['entries'] += utils.appendFluff(fluff,m['name'],'vehicleFluff',args.nohtml)
                 else:
-                    m['entries'] = utils.appendFluff(fluff,m['name'],'vehicle',args.nohtml)
+                    m['entries'] = utils.appendFluff(fluff,m['name'],'vehicleFluff',args.nohtml)
                 if 'image' not in m:
-                    m['image'] = utils.findFluffImage(fluff,m['name'],'vehicle')
+                    m['image'] = utils.findFluffImage(fluff,m['name'],'vehicleFluff')
             if 'alignment' not in m:
                 m['alignment'] = [ 'U' ]
             if m['vehicleType'] == "INFWAR":
@@ -611,13 +611,13 @@ for file in args.inputJSON:
                 if args.verbose or args.showdupe:
                     print ("Found duplicate entry for {} from {}".format(m['name'],xmlmon.find('source').text))
                 bdupe += 1
-            if fluff is not None and 'background' in fluff:
+            if fluff is not None and 'backgroundFluff' in fluff:
                 if 'entries' in m:
-                    m['entries'] = utils.appendFluff(fluff,m['name'],'background',args.nohtml) + m['entries']
+                    m['entries'] = utils.appendFluff(fluff,m['name'],'backgroundFluff',args.nohtml) + m['entries']
                 else:
-                    m['entries'] = utils.appendFluff(fluff,m['name'],'background',args.nohtml)
+                    m['entries'] = utils.appendFluff(fluff,m['name'],'backgroundFluff',args.nohtml)
                 if 'image' not in m:
-                    m['image'] = utils.findFluffImage(fluff,m['name'],'background')
+                    m['image'] = utils.findFluffImage(fluff,m['name'],'backgroundFluff')
             if ignoreError:
                 try:
                     parseBackground(m, compendium, args)
@@ -693,11 +693,11 @@ for file in args.inputJSON:
                 m['name'] = m['name'] + " (Kaladesh)"
             if fluff is not None and 'race' in fluff:
                 if 'entries' in m:
-                    m['entries'] += utils.appendFluff(fluff,m['name'],'race',args.nohtml)
+                    m['entries'] += utils.appendFluff(fluff,m['name'],'raceFluff',args.nohtml)
                 else:
-                    m['entries'] = utils.appendFluff(fluff,m['name'],'race',args.nohtml)
+                    m['entries'] = utils.appendFluff(fluff,m['name'],'raceFluff',args.nohtml)
                 if 'image' not in m:
-                    m['image'] = utils.findFluffImage(fluff,m['name'],'race')
+                    m['image'] = utils.findFluffImage(fluff,m['name'],'raceFluff')
             if 'subraces' in m:
                 for sub in m['subraces']:
                     if args.skipua:

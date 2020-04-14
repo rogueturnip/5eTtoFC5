@@ -72,7 +72,7 @@ def parseBackground(m, compendium, args):
             imagetag = ET.SubElement(bg, 'image')
             imagetag.text = slug + ".png"
 
-        #source = ET.SubElement(bg, 'source')
+        source = ET.SubElement(bg, 'source')
         sourcetext = "{} p. {}".format(
             utils.getFriendlySource(m['source']), m['page']) if 'page' in m and m['page'] != 0 else utils.getFriendlySource(m['source'])
 
@@ -91,7 +91,7 @@ def parseBackground(m, compendium, args):
                 m['entries'] = ["Source: {}".format(sourcetext)]
             else:
                 m['entries'] = ["<i>Source: {}</i>".format(sourcetext)]
-
+        source.text = sourcetext
     prof = ET.SubElement(bg, 'proficiency')
     if 'skillProficiencies' in m:
         profs = []

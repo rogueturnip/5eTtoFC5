@@ -320,7 +320,7 @@ def parseItem(m, compendium, args):
             imagetag = ET.SubElement(itm, 'image')
             imagetag.text = slug + ".jpg"
 
-        #source = ET.SubElement(itm, 'source')
+        source = ET.SubElement(itm, 'source')
         sourcetext = "{} p. {}".format(
             utils.getFriendlySource(m['source']), m['page']) if 'page' in m and m['page'] != 0 else utils.getFriendlySource(m['source'])
 
@@ -339,6 +339,7 @@ def parseItem(m, compendium, args):
                 m['entries'] = ["Source: {}".format(sourcetext)]
             else:
                 m['entries'] = ["<i>Source: {}</i>".format(sourcetext)]
+    source.text = sourcetext
     bodyText = ET.SubElement(itm, 'text')
     bodyText.text = ""
 

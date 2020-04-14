@@ -540,7 +540,7 @@ def multiCR(cr,scale):
             cr = '{:.0f}'.format(cr)
     return cr
 
-def appendFluff(fluff,m,t='monster',nohtml=False):
+def appendFluff(fluff,m,t='monsterFluff',nohtml=False):
     entries = []
     for f in fluff[t]:
         if f['name'] == m:
@@ -563,7 +563,7 @@ def appendFluff(fluff,m,t='monster',nohtml=False):
                 entries = entries + appendFluff(fluff,f['_appendCopy']['name'])
     return entries
 
-def findFluffImage(fluff,m,t='monster'):
+def findFluffImage(fluff,m,t='monsterFluff'):
     for f in fluff[t]:
         if f['name'] == m:
             if 'images' in f:

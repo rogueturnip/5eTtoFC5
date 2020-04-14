@@ -68,7 +68,7 @@ def parseRace(m, compendium, args):
             imagetag = ET.SubElement(race, 'image')
             imagetag.text = slug + ".png"
 
-        #source = ET.SubElement(race, 'source')
+        source = ET.SubElement(race, 'source')
         sourcetext = "{} p. {}".format(
             utils.getFriendlySource(m['source']), m['page']) if 'page' in m and m['page'] != 0 else utils.getFriendlySource(m['source'])
 
@@ -87,7 +87,7 @@ def parseRace(m, compendium, args):
                 m['entries'] = ["Source: {}".format(sourcetext)]
             else:
                 m['entries'] = ["<i>Source: {}</i>".format(sourcetext)]
-
+        source.text = sourcetext
     size = ET.SubElement(race, 'size')
     if m['size'] == 'V':
         size.text = 'M'
