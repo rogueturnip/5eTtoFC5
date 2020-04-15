@@ -566,7 +566,7 @@ def appendFluff(fluff,m,t='monsterFluff',nohtml=False):
 def findFluffImage(fluff,m,t='monsterFluff'):
     for f in fluff[t]:
         if f['name'] == m:
-            if 'images' in f:
+            if 'images' in f and f['images']:
                 for image in f['images']:
                     if 'href' in image and 'path' in image['href']:
                         return image['href']['path']
