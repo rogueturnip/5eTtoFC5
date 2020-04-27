@@ -397,6 +397,12 @@ def parseItem(m, compendium, args):
                                     subentries.append("• {}: {}".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml)))
                                 else:
                                     subentries.append("• <i>{}:</i> {}".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml)))
+                            elif type(item) == dict and item["type"] == "list" and "style" in item and item["style"] == "list-hang-notitle":
+                                for subitem in item["items"]:
+                                    if args.nohtml:
+                                        subentries.append("• {}: {}".format(subitem["name"],utils.fixTags(subitem["entry"],m,args.nohtml)) + "\n")
+                                    else:
+                                        subentries.append("• <i>{}:</i> {}".format(subitem["name"],utils.fixTags(subitem["entry"],m,args.nohtml)) + "\n")
                             else:
                                 subentries.append("• {}".format(utils.fixTags(item,m,args.nohtml)))
                 bodyText.text += "\n".join(subentries) + "\n"
