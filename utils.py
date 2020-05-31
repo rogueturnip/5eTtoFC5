@@ -479,7 +479,7 @@ def fixTags(s,m,nohtml=False):
         def createMLink(matchobj):
             return "<a href=\"/monster/{}\">{}</a>".format(slugify(matchobj.group(1)),matchobj.group(2))
         s = re.sub(r'{@creature (.*?)\|\|(.*?)?}', createMLink, s)
-        s = re.sub(r'{@creature (.*?)}', r'<monster>\1</monster>', s)
+        s = re.sub(r'{@creature (.*?)(\|.*?)?}', r'<monster>\1</monster>', s)
         s = re.sub(r'{@item (.*?)(\|.*?)?}', r'<item>\1</item>', s)
     else:
         s = re.sub(r'{@link (.*?)\|(.*?)?}', r'\1 (\2)', s)
