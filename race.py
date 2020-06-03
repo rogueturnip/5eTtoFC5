@@ -4,6 +4,7 @@ import re
 import utils
 import json
 import os
+import copy
 from slugify import slugify
 from wand.image import Image
 
@@ -19,8 +20,8 @@ def parseRace(m, compendium, args):
             mcpy = m
             for mn in d['race']:
                 racefound = False
-                if mn['name'] == mcpy['_copy']['name']:
-                    m = mn
+                if mn['name'] == mcpy['_copy']['name'] and mn['source'] == mcpy['_copy']['source']:
+                    m = copy.deepcopy(mn)
                     m['name'] = mcpy['name']
                     m['source'] = mcpy['source']
                     if "otherSources" in mcpy:

@@ -691,6 +691,10 @@ for file in args.inputJSON:
             elif m['source'] == "PSK" and m['name'] == "Vedalken":
                 m['original_name'] = m['name']
                 m['name'] = m['name'] + " (Kaladesh)"
+            elif m['source'] == "MOT":
+                if m['name'] in ("Centaur","Minotaur","Triton"):
+                    m['original_name'] = m['name']
+                    m['name'] = m['name'] + " (Theros)"
             if fluff is not None and 'race' in fluff:
                 if 'entries' in m:
                     m['entries'] += utils.appendFluff(fluff,m['name'],'raceFluff',args.nohtml)
