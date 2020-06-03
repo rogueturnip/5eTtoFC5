@@ -837,6 +837,61 @@ def parseMonster(m, compendium, args):
                             else:
                                 text.text = utils.fixTags(e,m,args.nohtml)
 
+    if 'mythic' in m:
+        mythic = ET.SubElement(monster, 'legendary')
+
+        if "mythicHeader" in m:
+            for h in m['mythicHeader']:
+                name = ET.SubElement(mythic, 'name')
+                name.text = "Mythic Actions"
+                text = ET.SubElement(mythic, 'text')
+                text.text = utils.remove5eShit(h)
+        for t in m['mythic']:
+            mythic = ET.SubElement(monster, 'legendary')
+            name = ET.SubElement(mythic, 'name')
+            if 'name' not in t:
+                t['name'] = ""
+            name.text = utils.remove5eShit(t['name'])
+            for e in t['entries']:
+                if isinstance(e, dict):
+                    if "colLabels" in e:
+                        text = ET.SubElement(mythic, 'text')
+                        text.text = " | ".join(
+                            [utils.remove5eShit(x) for x in e['colLabels']])
+                        for row in e['rows']:
+                            rowthing = []
+                            for r in row:
+                                if isinstance(r, dict) and 'roll' in r:
+                                    rowthing.append(
+                                        "{}-{}".format(
+                                            r['roll']['min'],
+                                            r['roll']['max']) if 'min' in r['roll'] else str(
+                                            r['roll']['exact']))
+                                else:
+                                    rowthing.append(utils.fixTags(r,m,args.nohtml))
+                            text = ET.SubElement(mythic, 'text')
+                            text.text = " | ".join(rowthing)
+                    else:
+                        for i in e["items"]:
+                            text = ET.SubElement(mythic, 'text')
+                            text.text = "{} {}".format(
+                                i['name'], utils.remove5eShit(i['entry']))
+                else:
+                    text = ET.SubElement(mythic, 'text')
+                    if type(e) == dict and e["type"] == "list" and "style" in e and e["style"] == "list-hang-notitle":
+                        text.text = ""
+                        for item in e["items"]:
+                            if args.nohtml:
+                                text.text += "• {}: {}\n".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml))
+                            else:
+                                text.text += "• <i>{}:</i> {}\n".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml))
+                    elif type(e) == dict and e["type"] == "list":
+                        text.text = ""
+                        for item in e["items"]:
+                            text.text += "• {}\n".format(utils.fixTags(item,m,args.nohtml))
+                    else:
+                        text.text = utils.fixTags(e,m,args.nohtml)
+
 
 
     if 'spellcasting' in m:
