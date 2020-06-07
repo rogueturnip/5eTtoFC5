@@ -72,7 +72,6 @@ def parseFeat(m, compendium, args):
             imagetag = ET.SubElement(feat, 'image')
             imagetag.text = slug + ".png"
 
-        source = ET.SubElement(feat, 'source')
         sourcetext = "{} p. {}".format(
             utils.getFriendlySource(m['source']), m['page']) if 'page' in m and m['page'] != 0 else utils.getFriendlySource(m['source'])
 
@@ -91,7 +90,10 @@ def parseFeat(m, compendium, args):
                 m['entries'] = ["Source: {}".format(sourcetext)]
             else:
                 m['entries'] = ["<i>Source: {}</i>".format(sourcetext)]
-    source.text = sourcetext
+
+    if not args.nohtml:
+        source = ET.SubElement(feat, 'source')
+        source.text = sourcetext
     bodyText = ET.SubElement(feat, 'text')
     bodyText.text = ""
 

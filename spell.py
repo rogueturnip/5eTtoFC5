@@ -167,7 +167,6 @@ def parseSpell(m, compendium, args):
             m["entries"] += higher["entries"]
 
     if 'source' in m:
-        source = ET.SubElement(spell, 'source')
         sourcetext = "{} p. {}".format(
             utils.getFriendlySource(m['source']), m['page']) if 'page' in m and m['page'] != 0 else utils.getFriendlySource(m['source'])
 
@@ -188,7 +187,9 @@ def parseSpell(m, compendium, args):
                 m['entries'] = "Source: {}".format(sourcetext)
             else:
                 m['entries'] = ["<i>Source: {}</i>".format(sourcetext)]
-        source.text = sourcetext
+        if not args.nohtml:
+            source = ET.SubElement(spell, 'source')
+            source.text = sourcetext
     bodyText = ET.SubElement(spell, 'text')
     bodyText.text = ""
 

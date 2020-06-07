@@ -137,7 +137,8 @@ officialsources = [
     "SADS",
     "MFF",
     "ESK",
-    "EGW"
+    "EGW",
+    "MOT"
     ]
 parser.add_argument(
     '--only-official',

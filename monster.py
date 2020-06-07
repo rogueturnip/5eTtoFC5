@@ -47,6 +47,8 @@ def parseMonster(m, compendium, args):
                     if 'original_name' in mcpy:
                         m['original_name'] = mcpy['original_name']
                     m['page'] = mcpy['page']
+                    if 'image' in mcpy:
+                        m['image'] = mcpy['image']
                     if '_mod' in mcpy['_copy']:
                         m = utils.modifyMonster(m,mcpy['_copy']['_mod'])
                     break
@@ -334,8 +336,9 @@ def parseMonster(m, compendium, args):
         #name.text = "Source"
         #text = ET.SubElement(trait, 'text')
         #text.text = sourcetext
-        srctag = ET.SubElement(monster, 'source')
-        srctag.text = sourcetext
+        if not args.nohtml:
+            srctag = ET.SubElement(monster, 'source')
+            srctag.text = sourcetext
     else:
         sourcetext = None
 
