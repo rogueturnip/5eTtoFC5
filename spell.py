@@ -141,6 +141,8 @@ def parseSpell(m, compendium, args):
     classlist = []
     if "classes" in m and "fromClassList" in m["classes"]:
         for c in m["classes"]["fromClassList"]:
+                if args.srd and c['source'] != 'PHB':
+                    continue
                 if args.skipua and c['source'].startswith('UA'):
                     continue
                 if args.onlyofficial:
@@ -149,6 +151,8 @@ def parseSpell(m, compendium, args):
                 classlist.append(c["name"] + " (UA)" if c["source"].startswith("UA") else c["name"])
     if "classes" in m and "fromSubclass" in m["classes"]:
         for c in m["classes"]["fromSubclass"]:
+                if args.srd:
+                    continue
                 if args.skipua and (c["class"]["source"].startswith("UA") or c["subclass"]["source"].startswith("UA")):
                     continue
                 if args.onlyofficial:
@@ -166,7 +170,7 @@ def parseSpell(m, compendium, args):
                 m["entries"].append("<b>{}:</b>".format(higher["name"]))
             m["entries"] += higher["entries"]
 
-    if 'source' in m:
+    if 'source' in m and not args.srd:
         sourcetext = "{} p. {}".format(
             utils.getFriendlySource(m['source']), m['page']) if 'page' in m and m['page'] != 0 else utils.getFriendlySource(m['source'])
 
@@ -196,6 +200,8 @@ def parseSpell(m, compendium, args):
     if 'entries' in m:
         for e in m['entries']:
             if "colLabels" in e:
+                if 'caption' in e:
+                    bodyText.text += "{}\n".format(e['caption'])
                 bodyText.text += " | ".join([utils.remove5eShit(x)
                                         for x in e['colLabels']])
                 bodyText.text += "\n"

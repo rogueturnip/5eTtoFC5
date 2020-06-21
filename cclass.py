@@ -94,8 +94,9 @@ def parseClass(m, compendium, args):
                 m['startingEquipment']['goldAlternative'],m,args.nohtml) + " gp and choose your own equipment."
             SFText = ET.SubElement(StartingFeature, 'text')
             SFText.text = ""
-    SFText = ET.SubElement(StartingFeature, 'text')
-    SFText.text = "Source: " + utils.getFriendlySource(m['source']) + " p. " + str(m['page'])
+    if not args.srd:
+        SFText = ET.SubElement(StartingFeature, 'text')
+        SFText.text = "Source: " + utils.getFriendlySource(m['source']) + " p. " + str(m['page'])
     if 'multiclassing' in m:
         myattributes = {"level":"1"}
         autolevel = ET.SubElement(Class, 'autolevel', myattributes)
@@ -141,8 +142,9 @@ def parseClass(m, compendium, args):
             SFText.text = "• Tools: " + MCtooltext
             SFText = ET.SubElement(StartingFeature, 'text')
             SFText.text = ""
-        SFText = ET.SubElement(StartingFeature, 'text')
-        SFText.text = "Source: " + utils.getFriendlySource(m['source']) + " p. " + str(m['page'])
+        if not args.srd:
+            SFText = ET.SubElement(StartingFeature, 'text')
+            SFText.text = "Source: " + utils.getFriendlySource(m['source']) + " p. " + str(m['page'])
     armor = ET.SubElement(Class, 'armor')
     armor.text = armortext
     weapons = ET.SubElement(Class, 'weapons')
@@ -190,21 +192,25 @@ def parseClass(m, compendium, args):
     level = 0
     currentsubclass = 0
     currentsubclassFeature = 0
-
-    for level in range(len(m['classFeatures'])):
+    for level in range(20):
         if slots:
-            if slots[level]:
+            if level<20 and slots[level]:
                 attributes = {"level": str(level+1)}
                 autolevel = ET.SubElement(Class, 'autolevel', attributes)
                 spellslots = ET.SubElement(autolevel, 'slots')
                 currentspellevel = level
                 spellslots.text = ", ".join(str(e) for e in slots[currentspellevel])
-        for feature in m['classFeatures'][level]:
-            if 'name' in feature:
-                if feature['name'] == "Ability Score Improvement":
-                    attributes = {"level": str(level+1),"scoreImprovement":"YES"}
-                else:
-                    attributes = {"level": str(level+1)}
+        for feature in m['classFeature']:
+            if feature['level'] != (level+1):
+                continue
+            if 'name' in feature and feature['name'] == "Ability Score Improvement":
+                attributes = {"level": str(level+1),"scoreImprovement":"YES"}
+            else:
+                attributes = {"level": str(level+1)}
+            if args.srd:
+                if 'srd' not in feature or not feature['srd']:
+                    currentsubclassFeature += 1
+                    continue
             if args.skipua and 'source' in feature and feature['source'].startswith('UA'):
                 if args.verbose:
                     print("Skipping UA Feature:",m['name'],feature['name'])
@@ -224,46 +230,70 @@ def parseClass(m, compendium, args):
             ftname = ET.SubElement(ft,'name')
             ftname.text = utils.fixTags(feature["name"],m,args.nohtml)
             for subfeature in feature['entries']:
-                flatten_json(subfeature,m,ft,args, level,attributes)
-            if "gainSubclassFeature" in feature and feature["gainSubclassFeature"]==True:
-                currentsubclass=0
-                for subclass in m['subclasses']:
-                    if args.skipua and 'source' in subclass and subclass['source'].startswith('UA'):
-                        if args.verbose:
-                            print("Skipping UA Subclass:",m['name'],subclass['name'])
+                if type(subfeature) == dict and 'type' in subfeature and subfeature['type'] == 'options':
+                    for opt in subfeature['entries']:
+                        sfopt = ET.SubElement(autolevel,'feature',{"optional": "YES"})
+                        sfoptname = ET.SubElement(sfopt,'name')
+                        sfoptname.text = "{}: {}".format(utils.fixTags(feature["name"],m,args.nohtml),utils.fixTags(opt["name"],m,args.nohtml))
+                        flatten_json(opt['entries'],m,sfopt,args, level,attributes)
+                else:
+                    flatten_json(subfeature,m,ft,args, level,attributes)
+            #if "gainSubclassFeature" in feature and feature["gainSubclassFeature"]==True:
+            currentsubclass=0
+            if 'subclasses' not in m:
+                continue
+            for subclass in m['subclasses']:
+                if args.srd:
+                    if 'srd' not in subclass or not subclass['srd']:
                         currentsubclass += 1
                         continue
-                    if args.onlyofficial:
-                        if 'source' in subclass and subclass['source'] not in args.onlyofficial:
-                            if args.verbose:
-                                print("Skipping unoffical content: {} from {}".format(m['name'],utils.getFriendlySource(m['source'])))
-                            currentsubclass += 1
-                            continue
+                if args.skipua and 'source' in subclass and subclass['source'].startswith('UA'):
+                    if args.verbose:
+                        print("Skipping UA Subclass:",m['name'],subclass['name'])
+                    currentsubclass += 1
+                    continue
+                if args.onlyofficial:
+                    if 'source' in subclass and subclass['source'] not in args.onlyofficial:
+                        if args.verbose:
+                            print("Skipping unoffical content: {} from {}".format(m['name'],utils.getFriendlySource(m['source'])))
+                        currentsubclass += 1
+                        continue
+                subclassname=subclass['name']
+                #ft = ET.SubElement(autolevel, 'feature',attributes)
+                #print(subclass['source'])
+                #if currentsubclassFeature == 0:
+                #    ftname = ET.SubElement(ft,'name')
+                #    ftname.text = "{}: {}".format(utils.fixTags(m['subclassTitle'],m,args.nohtml),subclassname)
+                for subfeature in m['subclassFeature']:
+                    if subfeature['level'] != (level+1) or subfeature['subclassShortName'] != subclass['shortName']:
+                        continue
                     attributes = {"level": str(level+1)}
                     autolevel = ET.SubElement(Class, 'autolevel', attributes)
                     attributes = {"optional": "YES"}
-                    subclassname=subclass['name']
+
                     ft = ET.SubElement(autolevel, 'feature',attributes)
-                    #print(subclass['source'])
-                    if currentsubclassFeature == 0:
-                        ftname = ET.SubElement(ft,'name')
-                        ftname.text = "{}: {}".format(utils.fixTags(m['subclassTitle'],m,args.nohtml),subclassname)
-                    for subfeature in subclass['subclassFeatures'][currentsubclassFeature]:
-                        if 'entries' in subfeature:
-                            for entry in subfeature['entries']:
-                                if type(entry) is str:
-                                    fttext = ET.SubElement(ft,'text')
-                                    fttext.text = entry
+                    ftname = ET.SubElement(ft,'name')
+                    if subclassname == subfeature['name']:
+                        ftname.text = "{}: {}".format(utils.fixTags(m['subclassTitle'],m,args.nohtml),subfeature['name'])
+                    else:
+                        ftname.text = "{}: {}".format(utils.fixTags(subclassname,m,args.nohtml),subfeature['name'])
+
+                    if 'entries' in subfeature:
+                        for entry in subfeature['entries']:
+                            if type(entry) is str:
+                                fttext = ET.SubElement(ft,'text')
+                                fttext.text = utils.fixTags(entry,m,args.nohtml)
+                            else:
+                                if currentsubclassFeature == 0:
+                                    flatten_json(entry,m,ft,args, level, attributes)
                                 else:
-                                    if currentsubclassFeature == 0:
-                                        flatten_json(entry,m,ft,args, level, attributes)
-                                    else:
-                                        flatten_json(entry,m,ft,args, level, attributes,subclassname)
-                        else:
-                            print("this shouldn't happen")
-                        SFText = ET.SubElement(ft, 'text')
-                        SFText.text = ""
-                        SFText = ET.SubElement(ft, 'text')
+                                    flatten_json(entry,m,ft,args, level, attributes,subclassname)
+                    else:
+                        print("this shouldn't happen")
+                    SFText = ET.SubElement(ft, 'text')
+                    SFText.text = ""
+                    SFText = ET.SubElement(ft, 'text')
+                    if not args.srd:
                         if 'page' in subclass:
                             SFText.text = "Source: " + utils.getFriendlySource(subclass['source']) + " p. " + str(subclass['page'])
                         else:
@@ -273,6 +303,9 @@ def parseClass(m, compendium, args):
 
 def flatten_json(nested_json, d, Class, args, level, attributes,subclassname=''):
     def flatten(x, m, args, name=''):
+        if args.srd:
+            if 'srd' not in m or not m['srd']:
+                return
         if args.skipua and 'source' in m and m['source'].startswith('UA'):
             if args.verbose:
                 print("Skipping UA Content: ",m['name'])
@@ -290,19 +323,19 @@ def flatten_json(nested_json, d, Class, args, level, attributes,subclassname='')
                     text = ET.SubElement(m, 'name')
                     #print(str(x))
                     #print(str(m))
-                    text.text = utils.fixTags(x,m,args.nohtml)
+                    text.text = utils.fixTags(x,d,args.nohtml)
                 elif name=="text":
                     text = ET.SubElement(m, 'text')
-                    text.text = "   " + utils.fixTags(x,m,args.nohtml)
+                    text.text = "   " + utils.fixTags(x,d,args.nohtml)
                 elif name=="nametext":
                     text = ET.SubElement(m, 'text')
-                    text.text = utils.fixTags(x,m,args.nohtml)
+                    text.text = utils.fixTags(x,d,args.nohtml)
                 elif name=="list":
                     text = ET.SubElement(m, 'text')
-                    text.text = "• " + utils.fixTags(x,m,args.nohtml)
+                    text.text = "• " + utils.fixTags(x,d,args.nohtml)
                 else:
                     text = ET.SubElement(m, 'text')
-                    text.text = utils.fixTags(x,m,args.nohtml)
+                    text.text = utils.fixTags(x,d,args.nohtml)
         elif type(x) is dict:
             if "type" in x:
                 if x['type']=='abilityDc' or x['type']=='abilityAttackMod':
@@ -311,7 +344,7 @@ def flatten_json(nested_json, d, Class, args, level, attributes,subclassname='')
                 if "name" in x:
                     if 'subclassTitle' in d and d['subclassTitle'] and 'optional' in attributes:
                         if subclassname:
-                            SubClassFeatureName = x['name'] + " ("  + subclassname + ")"
+                            SubClassFeatureName = "{}: {}".format(subclassname,x['name'])
                             flatten(SubClassFeatureName, m, args, "name")
                         else:
                             blank = ET.SubElement(m, 'text')
@@ -334,9 +367,12 @@ def flatten_json(nested_json, d, Class, args, level, attributes,subclassname='')
                             flatten(item['entry'], m, args, "list")
                         blank = ET.SubElement(m, 'text')
                         blank.text = ""
-                    elif "colLabels" in x:
+                    elif a=="type" and x[a]=="table" and "colLabels" in x:
                         blank = ET.SubElement(m, 'text')
                         blank.text = ""
+                        if "caption" in x:
+                            text = ET.SubElement(m, 'text')
+                            text.text = utils.fixTags(x["caption"],d,args.nohtml)
                         text = ET.SubElement(m, 'text')
                         text.text = " | ".join([utils.remove5eShit(y)
                                                 for y in x['colLabels']])
@@ -350,7 +386,7 @@ def flatten_json(nested_json, d, Class, args, level, attributes,subclassname='')
                                             r['roll']['max']) if 'min' in r['roll'] else str(
                                             r['roll']['exact']))
                                 else:
-                                    rowthing.append(utils.fixTags(str(r),m,args.nohtml))
+                                    rowthing.append(utils.fixTags(str(r),d,args.nohtml))
                             text = ET.SubElement(m, 'text')
                             text.text = " | ".join(rowthing)
                     elif "type" in a and x[a]=="list":

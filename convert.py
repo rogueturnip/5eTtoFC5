@@ -99,6 +99,13 @@ parser.add_argument(
     default=False,
     const=True,
     help="skip UA content")
+parser.add_argument(
+    '--srd',
+    dest="srd",
+    action='store_const',
+    default=False,
+    const=True,
+    help="only SRD content")
 officialsources = [
     "PHB",
     "MM",
@@ -334,6 +341,12 @@ for file in args.inputJSON:
         cdupe = 0
     if 'monster' in d:
         for m in d['monster']:
+            if args.srd:
+                if 'srd' not in m or not m['srd']:
+                    continue
+                elif type(m['srd']) == str:
+                    m['original_name']=m['name']
+                    m['name'] = m['srd']
             if args.skipua:
                 if m['source'].startswith('UA'):
                     if args.verbose:
@@ -394,6 +407,12 @@ for file in args.inputJSON:
                 mwins += 1
     if 'vehicle' in d:
         for m in d['vehicle']:
+            if args.srd:
+                if 'srd' not in m or not m['srd']:
+                    continue
+                elif type(m['srd']) == str:
+                    m['original_name']=m['name']
+                    m['name'] = m['srd']
             if args.skipua:
                 if m['source'].startswith('UA'):
                     if args.verbose:
@@ -568,6 +587,12 @@ for file in args.inputJSON:
                 mwins += 1
     if 'spell' in d:
         for m in d['spell']:
+            if args.srd:
+                if 'srd' not in m or not m['srd']:
+                    continue
+                elif type(m['srd']) == str:
+                    m['original_name']=m['name']
+                    m['name'] = m['srd']
             if args.skipua:
                 if m['source'].startswith('UA'):
                     if args.verbose:
@@ -598,6 +623,12 @@ for file in args.inputJSON:
                 swins += 1
     if 'background' in d:
         for m in d['background']:
+            if args.srd:
+                if 'srd' not in m or not m['srd']:
+                    continue
+                elif type(m['srd']) == str:
+                    m['original_name']=m['name']
+                    m['name'] = m['srd']
             if args.skipua:
                 if m['source'].startswith('UA'):
                     if args.verbose:
@@ -635,6 +666,12 @@ for file in args.inputJSON:
 
     if 'feat' in d:
         for m in d['feat']:
+            if args.srd:
+                if 'srd' not in m or not m['srd']:
+                    continue
+                elif type(m['srd']) == str:
+                    m['original_name']=m['name']
+                    m['name'] = m['srd']
             if args.skipua:
                 if m['source'].startswith('UA'):
                     if args.verbose:
@@ -670,6 +707,12 @@ for file in args.inputJSON:
     if 'race' in d:
         for race in d['race']:
             m = copy.deepcopy(race)
+            if args.srd:
+                if 'srd' not in m or not m['srd']:
+                    continue
+                elif type(m['srd']) == str:
+                    m['original_name']=m['name']
+                    m['name'] = m['srd']
             if args.skipua:
                 if m['source'].startswith('UA'):
                     if args.verbose:
@@ -705,6 +748,12 @@ for file in args.inputJSON:
                     m['image'] = utils.findFluffImage(fluff,m['name'],'raceFluff')
             if 'subraces' in m:
                 for sub in m['subraces']:
+                    if args.srd:
+                        if 'srd' not in sub or not sub['srd']:
+                            continue
+                        elif type(sub['srd']) == str:
+                            sub['original_name']=sub['name']
+                            sub['name'] = sub['srd']
                     if args.skipua:
                         if 'source' in sub and sub['source'].startswith('UA'):
                             if args.verbose:
@@ -790,6 +839,12 @@ for file in args.inputJSON:
                     rwins += 1
     if 'class' in d:
         for m in d['class']:
+            if args.srd:
+                if 'srd' not in m or not m['srd']:
+                    continue
+                elif type(m['srd']) == str:
+                    m['original_name']=m['name']
+                    m['name'] = m['srd']
             if args.skipua:
                 if m['source'].startswith('UA'):
                     if args.verbose:
@@ -800,6 +855,42 @@ for file in args.inputJSON:
                     if args.verbose:
                         print("Skipping unoffical content: {} from {}".format(m['name'],utils.getFriendlySource(m['source'])))
                     continue
+            if 'classFeature' not in m:
+                m['classFeature'] = []
+            if 'subclassFeature' not in m:
+                m['subclassFeature'] = []
+
+            for cf in d['classFeature']:
+                if args.skipua:
+                    if m['source'].startswith('UA'):
+                        if args.verbose:
+                            print("Skipping UA Content: ",m['name'])
+                        continue
+                if args.onlyofficial:
+                    if m['source'] not in args.onlyofficial:
+                        if args.verbose:
+                            print("Skipping unoffical content: {} from {}".format(m['name'],utils.getFriendlySource(m['source'])))
+                        continue
+                if cf['className'] != m['name'] or cf['classSource'] != m['source']:
+                    continue
+                m['classFeature'].append(copy.deepcopy(cf))
+            if 'subclassFeature' in d:
+                for cf in d['subclassFeature']:
+                    if args.skipua:
+                        if m['source'].startswith('UA'):
+                            if args.verbose:
+                                print("Skipping UA Content: ",m['name'])
+                            continue
+                    if args.onlyofficial:
+                        if m['source'] not in args.onlyofficial:
+                            if args.verbose:
+                                print("Skipping unoffical content: {} from {}".format(m['name'],utils.getFriendlySource(m['source'])))
+                            continue
+                    if cf['className'] != m['name'] or cf['classSource'] != m['source']:
+                        continue
+                    m['subclassFeature'].append(copy.deepcopy(cf))
+
+
             if m['source'].startswith('UA'):
                 m['original_name'] = m['name']
                 m['name'] = m['name'] + " (UA)"
@@ -826,6 +917,12 @@ for file in args.inputJSON:
                 if args.verbose:
                     print ("SKIPPING",m['age'],"ITEM:",m['name'])
                 continue
+            if args.srd:
+                if 'srd' not in m or not m['srd']:
+                    continue
+                elif type(m['srd']) == str:
+                    m['original_name']=m['name']
+                    m['name'] = m['srd']
             if args.skipua:
                 if m['source'].startswith('UA'):
                     if args.verbose:
@@ -865,6 +962,12 @@ for file in args.inputJSON:
                 iwins += 1
     if 'itemGroup' in d:
         for m in d['itemGroup']:
+            if args.srd:
+                if 'srd' not in m or not m['srd']:
+                    continue
+                elif type(m['srd']) == str:
+                    m['original_name']=m['name']
+                    m['name'] = m['srd']
             if ignoreError:
                 try:
                     parseItem(m, compendium, args)
@@ -880,6 +983,12 @@ for file in args.inputJSON:
                 iwins += 1
     if 'baseitem' in d:
         for m in d['baseitem']:
+            if args.srd:
+                if 'srd' not in m or not m['srd']:
+                    continue
+                elif type(m['srd']) == str:
+                    m['original_name']=m['name']
+                    m['name'] = m['srd']
             if 'age' in m and m['age'].lower() in excludedages:
                 if args.verbose:
                     print ("SKIPPING",m['age'],"ITEM:",m['name'])
@@ -962,6 +1071,12 @@ for file in args.inputJSON:
                                 if 'lootTables' not in mm:
                                     mm['lootTables'] = []
                                 mm['lootTables'] += mv['linkedLootTables']['DMG'][mm['name']]
+                        if args.srd:
+                            if 'srd' not in mm or not mm['srd']:
+                                continue
+                            elif type(mm['srd']) == str:
+                                mm['original_name']=mm['name']
+                                mm['name'] = mm['srd']
                         if ignoreError:
                             try:
                                 parseItem(mm, compendium, args)

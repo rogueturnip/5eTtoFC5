@@ -22,6 +22,13 @@ parser.add_argument(
     default=False,
     help="id for book to convert")
 parser.add_argument(
+    '-a',
+    dest="adventure",
+    action='store_const',
+    const=True,
+    default=False,
+    help="is an adventure")
+parser.add_argument(
     '-v',
     dest="verbose",
     action='store_const',
@@ -493,8 +500,17 @@ def processSection(order,d,mod,parentuuid=None,parentname=None):
                             content.text += "</p>\n"
                         elif se['type'] == 'quote':
                             content.text += "<p><i>{}</i></p><span class=\"text-right\">&mdash;{}<i>{}</i></span>".format("<br>".join(se['entries']),se['by'],', '+se['from'] if 'from' in se else '')
+                        elif se['type'] == 'insetReadaloud':
+                            content.text += "<blockquote class=\"read\">\n"
+                            for x in se['entries']:
+                                content.text += "<p>{}</p>\n".format(fixTags(getEntry(x)))
+                            content.text += "</blockquote>\n"
+                        elif se['type'] == 'gallery':
+                            for image in se['images']:
+                                content.text += "<img src=\"{}\">\n".format(os.path.basename(image['href']['path']))
+                                shutil.copy("./img/" + image['href']['path'],os.path.join(tempdir,os.path.basename(image['href']['path'])))
                         else:
-                            print("TODO: entries type:",se['type'])
+                            print("TODO: se entries type:",se['type'])
                     else:
                         content.text += "<p>{}</p>".format(fixTags(se))
             elif e['type'] == 'list':
@@ -533,8 +549,13 @@ def processSection(order,d,mod,parentuuid=None,parentname=None):
                 content.text += "<p>\n"
                 content.text += " ".join([re.sub(r'</?p>','',getEntry(x)) for x in e['entries']])
                 content.text += "</p>\n"
+            elif e['type'] == 'insetReadaloud':
+                content.text += "<blockquote class=\"read\">\n"
+                for x in e['entries']:
+                    content.text += "<p>{}</p>\n".format(fixTags(x))
+                content.text += "</blockquote>\n"
             else:
-                print("TODO: entry type:",e['type'])
+                print("TODO: e entry type:",e['type'])
         else:
             content.text += "<p>{}</p>".format(fixTags(e))
     if parentname:
@@ -577,7 +598,7 @@ def getEntry(e):
             content += "</blockquote>\n"
             return content
         elif e['type'] == "item":
-            return "<b>{}</b> {}".format(e['name'],fixTags(e['entry']))
+            return "<b>{}</b> {}".format(e['name'],fixTags(e['entry'] if 'entry' in e else getEntry(e['entries'])))
         elif e['type'] == "tableGroup":
             for table in e['tables']:
                 content += getTable(table)
@@ -605,6 +626,17 @@ def getEntry(e):
                 return "{}-{}".format(e['roll']['min'],e['roll']['max'])
         elif e['type'] == 'quote':
             return "<p><i>{}</i></p><span class=\"text-right\">&mdash;{}<i>{}</i></span>".format("<br>".join(e['entries']),e['by'],', '+e['from'] if 'from' in e else '')
+        elif e['type'] == 'insetReadaloud':
+            content += "<blockquote class=\"read\">\n"
+            for x in e['entries']:
+                content += "<p>{}</p>\n".format(fixTags(x))
+            content += "</blockquote>\n"
+            return content
+        elif e['type'] == 'gallery':
+            for image in e['images']:
+                content += "<img src=\"{}\">\n".format(os.path.basename(image['href']['path']))
+                shutil.copy("./img/" + image['href']['path'],os.path.join(tempdir,os.path.basename(image['href']['path'])))
+            return content
         else:
             print("Dont know",e['type'])
             print(e)
@@ -646,18 +678,25 @@ def getTable(e):
 with open("./data/books.json",encoding='utf-8') as f:
         b = json.load(f)
         f.close()
-
-for book in b['book']:
+bookkey = "book"
+if args.adventure:
+    with open("./data/adventures.json",encoding='utf-8') as f:
+            b = json.load(f)
+            f.close()
+    bookkey = "adventure"
+for book in b[bookkey]:
     if not args.book:
         print("{:8s}: {}".format(book["id"],book["name"]))
         continue
     elif args.book.lower() != book["id"].lower():
         continue
-
-    with open("./data/book/book-{}.json".format(book["id"].lower())) as f:
+    filemask = "./data/book/book-{}.json" if not args.adventure else "./data/adventure/adventure-{}.json"
+    with open(filemask.format(book["id"].lower())) as f:
         data = json.load(f)
         f.close()
 
+    if 'author' not in book:
+        book['author'] = "Wizards RPG Team"
     module = ET.Element(
         'module', { 'id': slugify(book["id"] + " " + book["name"]),'version': "{:.0f}".format(time.time()) } )
     name = ET.SubElement(module, 'name')
@@ -669,8 +708,8 @@ for book in b['book']:
     code = ET.SubElement(module, 'code')
     code.text = book['id']
     image = ET.SubElement(module, 'image')
-    image.text = os.path.basename(book['image'])
-    shutil.copy("./img/" + book['image'],os.path.join(tempdir,os.path.basename(book['image'])))
+    image.text = os.path.basename(book['coverUrl'])
+    shutil.copy(book['coverUrl'],os.path.join(tempdir,os.path.basename(book['coverUrl'])))
     slug = ET.SubElement(module, 'slug')
     slug.text = slugify(book['name'])
     description = ET.SubElement(module, 'description')

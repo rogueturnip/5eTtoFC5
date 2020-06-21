@@ -456,6 +456,13 @@ def fixTags(s,m,nohtml=False):
         def propRepl(matchobj):
             if matchobj.group(1) in m:
                 flags = matchobj.group(2)
+                if matchobj.group(1) == 'dmgType':
+                    if m[matchobj.group(1)] == 'B':
+                        return "bludgeoning"
+                    elif m[matchobj.group(1)] == 'P':
+                        return "piercing"
+                    elif m[matchobj.group(1)] == 'S':
+                        return "slashing"
                 repl = m[matchobj.group(1)]
                 if not flags == None:
                     if 'a' in flags:
@@ -487,10 +494,13 @@ def fixTags(s,m,nohtml=False):
     if '{@' in s:
         s = remove5eShit(s)
 
+    name = m['name']
+    if 'original_name' in m:
+        s = re.sub(re.escape(m['original_name']),name,s,flags=re.I)
+
     if '<$' not in s:
         return s
 
-    name = m['name']
     if 'isNpc' in m and m['isNpc']:
         nameparts = name.split(" ")
         name = nameparts[0]

@@ -48,7 +48,7 @@ def parseBackground(m, compendium, args):
     if 'entries' not in m:
         m['entries'] = []
 
-    if 'source' in m:
+    if 'source' in m and not args.srd:
         slug = slugify(m["name"])
         if args.addimgs and os.path.isdir("./img") and not os.path.isfile("./items/" + slug + ".png"):
             if not os.path.isdir("./items/"):
@@ -121,6 +121,8 @@ def parseBackground(m, compendium, args):
                 else:
                     text = description
                 if "colLabels" in e:
+                    if 'caption' in e:
+                        text.text += "{}\n".format(e['caption'])
                     text.text += " | ".join([utils.remove5eShit(x)
                                             for x in e['colLabels']])
                     text.text += "\n"
@@ -172,6 +174,8 @@ def parseBackground(m, compendium, args):
                         else:
                             if "colLabels" in sube:
                                 tabletext = ""
+                                if 'caption' in sube:
+                                    tabletext += "{}\n".format(sube['caption'])
                                 tabletext += " | ".join([utils.remove5eShit(x)
                                                         for x in sube['colLabels']])
                                 tabletext += "\n"

@@ -48,7 +48,7 @@ def parseFeat(m, compendium, args):
     if 'entries' not in m:
         m['entries'] = []
 
-    if 'source' in m:
+    if 'source' in m and not args.srd:
         slug = slugify(m["name"])
         if args.addimgs and os.path.isdir("./img") and not os.path.isfile("./items/" + slug + ".png"):
             if not os.path.isdir("./items/"):
@@ -91,9 +91,9 @@ def parseFeat(m, compendium, args):
             else:
                 m['entries'] = ["<i>Source: {}</i>".format(sourcetext)]
 
-    if not args.nohtml:
-        source = ET.SubElement(feat, 'source')
-        source.text = sourcetext
+        if not args.nohtml:
+            source = ET.SubElement(feat, 'source')
+            source.text = sourcetext
     bodyText = ET.SubElement(feat, 'text')
     bodyText.text = ""
 
@@ -111,6 +111,9 @@ def parseFeat(m, compendium, args):
     if 'entries' in m:
         for e in m['entries']:
             if "colLabels" in e:
+                if 'caption' in e:
+                    bodyText.text += "{}\n".format(e['caption'])
+
                 bodyText.text += " | ".join([utils.remove5eShit(x)
                                         for x in e['colLabels']])
                 bodyText.text += "\n"

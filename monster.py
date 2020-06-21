@@ -264,7 +264,7 @@ def parseMonster(m, compendium, args):
     if 'senses' in m:
         senses.text = ", ".join([x for x in m['senses']])
 
-    if 'source' in m:
+    if 'source' in m and not args.srd:
         slug = slugify(m["name"])
         if args.addimgs and os.path.isdir("img") and not os.path.isfile(os.path.join(args.tempdir,"monsters", slug + ".png")) and not os.path.isfile(os.path.join(args.tempdir,"monsters",slug+".jpg")) and not os.path.isfile(os.path.join(args.tempdir,"monsters", "token_" + slug + ".png")) and not os.path.isfile(os.path.join(args.tempdir,"monsters", "token_" + slug + ".jpg")):
             if not os.path.isdir(os.path.join(args.tempdir,"monsters")):
@@ -351,6 +351,9 @@ def parseMonster(m, compendium, args):
             for e in t['entries']:
                 if "colLabels" in e:
                     text = ET.SubElement(trait, 'text')
+                    if 'caption' in e:
+                        text.text = "{}\n".format(e['caption'])
+                    text = ET.SubElement(trait, 'text')
                     text.text = " | ".join([utils.remove5eShit(x)
                                             for x in e['colLabels']])
                     for row in e['rows']:
@@ -420,6 +423,9 @@ def parseMonster(m, compendium, args):
             for e in t['entries']:
                 if isinstance(e, dict):
                     if "colLabels" in e:
+                        text = ET.SubElement(action, 'text')
+                        if 'caption' in e:
+                            text.text = "{}\n".format(e['caption'])
                         text = ET.SubElement(action, 'text')
                         text.text = " | ".join(
                             [utils.remove5eShit(x) for x in e['colLabels']])
@@ -499,6 +505,9 @@ def parseMonster(m, compendium, args):
                 if isinstance(e, dict):
                     if "colLabels" in e:
                         text = ET.SubElement(action, 'text')
+                        if 'caption' in e:
+                            text.text = "{}\n".format(e['caption'])
+                        text = ET.SubElement(action, 'text')
                         text.text = " | ".join(
                             [utils.remove5eShit(x) for x in e['colLabels']])
                         for row in e['rows']:
@@ -565,6 +574,9 @@ def parseMonster(m, compendium, args):
             for e in t['entries']:
                 if isinstance(e, dict):
                     if "colLabels" in e:
+                        text = ET.SubElement(action, 'text')
+                        if 'caption' in e:
+                            text.text = "{}\n".format(e['caption'])
                         text = ET.SubElement(action, 'text')
                         text.text = " | ".join(
                             [utils.remove5eShit(x) for x in e['colLabels']])
@@ -681,6 +693,9 @@ def parseMonster(m, compendium, args):
                 if isinstance(e, dict):
                     if "colLabels" in e:
                         text = ET.SubElement(legendary, 'text')
+                        if 'caption' in e:
+                            text.text = "{}\n".format(e['caption'])
+                        text = ET.SubElement(legendary, 'text')
                         text.text = " | ".join(
                             [utils.remove5eShit(x) for x in e['colLabels']])
                         for row in e['rows']:
@@ -746,6 +761,9 @@ def parseMonster(m, compendium, args):
                         if isinstance(e, dict):
                             if "colLabels" in e:
                                 text = ET.SubElement(legendary, 'text')
+                                if 'caption' in e:
+                                    text.text = "{}\n".format(e['caption'])
+                                text = ET.SubElement(legendary, 'text')
                                 text.text = " | ".join(
                                     [utils.remove5eShit(x) for x in e['colLabels']])
                                 for row in e['rows']:
@@ -804,6 +822,10 @@ def parseMonster(m, compendium, args):
                         if isinstance(e, dict):
                             if "colLabels" in e:
                                 text = ET.SubElement(legendary, 'text')
+                                if 'caption' in e:
+                                    text.text = "{}\n".format(e['caption'])
+
+                                text = ET.SubElement(legendary, 'text')
                                 text.text = " | ".join(
                                     [utils.remove5eShit(x) for x in e['colLabels']])
                                 for row in e['rows']:
@@ -858,6 +880,10 @@ def parseMonster(m, compendium, args):
             for e in t['entries']:
                 if isinstance(e, dict):
                     if "colLabels" in e:
+                        text = ET.SubElement(mythic, 'text')
+                        if 'caption' in e:
+                            text.text = "{}\n".format(e['caption'])
+
                         text = ET.SubElement(mythic, 'text')
                         text.text = " | ".join(
                             [utils.remove5eShit(x) for x in e['colLabels']])
@@ -963,7 +989,7 @@ def parseMonster(m, compendium, args):
 
     description = ET.SubElement(monster, 'description')
     description.text = ""
-    if 'entries' in m:
+    if 'entries' in m and not args.srd:
        for t in m['entries']:
             if type(t) == str:
                 description.text += utils.fixTags(t,m,args.nohtml) + "\n"
@@ -974,6 +1000,9 @@ def parseMonster(m, compendium, args):
                 for e in t['entries']:
                     if isinstance(e, dict):
                         if "colLabels" in e:
+                            if 'caption' in e:
+                                description.text += "{}\n".format(e['caption'])
+
                             description.text += " | ".join(
                                 [utils.remove5eShit(x) for x in e['colLabels']]) + "\n"
                             for row in e['rows']:
@@ -1014,7 +1043,7 @@ def parseMonster(m, compendium, args):
                             description.text += utils.fixTags(e,m,args.nohtml)
                             description.text += "\n"
 
-    description.text += "<i>Source: {}</i>".format(sourcetext)
+    if sourcetext: description.text += "<i>Source: {}</i>".format(sourcetext)
     if args.nohtml:
         description.text = re.sub('</?(i|b|spell)>', '', description.text)
     environment = ET.SubElement(monster, 'environment')

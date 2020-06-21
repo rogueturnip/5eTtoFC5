@@ -273,14 +273,14 @@ def parseItem(m, compendium, args):
             m['entries'].insert(0,"A holy symbol is a representation of a god or pantheon.")
             m['entries'].insert(1,"A cleric or paladin can use a holy symbol as a spellcasting focus. To use the symbol in this way, the caster must hold it in hand, wear it visibly, or bear it on a shield.")
 
-    if 'lootTables' in m:
+    if 'lootTables' in m and not args.srd:
         if args.nohtml:
             m['entries'].append("Found On: {}".format(", ".join(m['lootTables'])))
         else:
             m['entries'].append("<i>Found On: {}</i> ".format(", ".join(m['lootTables'])))
 
 
-    if 'source' in m:
+    if 'source' in m and not args.srd:
         slug = slugify(m["name"])
         if args.addimgs and os.path.isdir("img") and not os.path.isfile(os.path.join(args.tempdir,"items", slug + ".png")) and not os.path.isfile(os.path.join(args.tempdir,"items",slug+".jpg")):
             if not os.path.isdir(os.path.join(args.tempdir,"items")):
@@ -338,15 +338,17 @@ def parseItem(m, compendium, args):
                 m['entries'] = ["Source: {}".format(sourcetext)]
             else:
                 m['entries'] = ["<i>Source: {}</i>".format(sourcetext)]
-    if not args.nohtml:
-        source = ET.SubElement(itm, 'source')
-        source.text = sourcetext
+        if not args.nohtml:
+            source = ET.SubElement(itm, 'source')
+            source.text = sourcetext
     bodyText = ET.SubElement(itm, 'text')
     bodyText.text = ""
 
     if 'entries' in m:
         for e in m['entries']:
             if "colLabels" in e:
+                if 'caption' in e:
+                    bodyText.text += "{}\n".format(e['caption'])
                 bodyText.text += " | ".join([utils.remove5eShit(x)
                                         for x in e['colLabels']])
                 bodyText.text += "\n"
