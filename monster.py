@@ -348,51 +348,9 @@ def parseMonster(m, compendium, args):
             trait = ET.SubElement(monster, 'trait')
             name = ET.SubElement(trait, 'name')
             name.text = utils.remove5eShit(t['name'])
-            for e in t['entries']:
-                if "colLabels" in e:
-                    text = ET.SubElement(trait, 'text')
-                    if 'caption' in e:
-                        text.text = "{}\n".format(e['caption'])
-                    text = ET.SubElement(trait, 'text')
-                    text.text = " | ".join([utils.remove5eShit(x)
-                                            for x in e['colLabels']])
-                    for row in e['rows']:
-                        rowthing = []
-                        for r in row:
-                            if isinstance(r, dict) and 'roll' in r:
-                                rowthing.append(
-                                    "{}-{}".format(
-                                        r['roll']['min'],
-                                        r['roll']['max']) if 'min' in r['roll'] else str(
-                                        r['roll']['exact']))
-                            else:
-                                rowthing.append(utils.fixTags(r,m,args.nohtml))
-                        text = ET.SubElement(trait, 'text')
-                        text.text = " | ".join(rowthing)
-                elif "entries" in e:
-                    text = ET.SubElement(trait, 'text')
-                    subentries = []                    
-                    for sube in e["entries"]:
-                        if type(sube) == str:
-                            subentries.append(utils.fixTags(sube,m,args.nohtml))
-                        elif type(sube) == dict and "text" in sube:
-                            subentries.append(utils.fixTags(sube["text"],m,args.nohtml))
-                    text.text = "\n".join(subentries)
-                else:
-                    if type(e) == dict and e["type"] == "list" and "style" in e and e["style"] == "list-hang-notitle":
-                        for item in e["items"]:
-                            text = ET.SubElement(trait, 'text')
-                            if args.nohtml:
-                                text.text = "• {}: {}".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml))
-                            else:
-                                text.text = "• <i>{}:</i> {}".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml))
-                    elif type(e) == dict and e["type"] == "list":
-                        for item in e["items"]:
-                            text = ET.SubElement(trait, 'text')
-                            text.text = "• {}".format(utils.fixTags(item,m,args.nohtml))
-                    else:
-                        text = ET.SubElement(trait, 'text')
-                        text.text = utils.fixTags(e,m,args.nohtml)
+            for e in utils.getEntryString(t["entries"],m,args).split("\n"):
+                text = ET.SubElement(trait, 'text')
+                text.text = e
 
     if 'action' in m and m['action'] is not None:
         for t in m['action']:
@@ -400,100 +358,13 @@ def parseMonster(m, compendium, args):
             if 'name' in t:
                 name = ET.SubElement(action, 'name')
                 name.text = utils.remove5eShit(t['name'])
-            if 'entries' not in t:
+            for e in utils.getEntryString(t["entries"],m,args).split("\n"):
                 text = ET.SubElement(action, 'text')
-                if type(t) == dict and t["type"] == "list" and "style" in t and t["style"] == "list-hang-notitle":
-                    text.text = ""
-                    for item in t["items"]:
-                        if args.nohtml:
-                            text.text += "• {}: {}\n".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml))
-                        else:
-                            text.text += "• <i>{}:</i> {}\n".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml))
-                elif type(t) == dict and t["type"] == "list":
-                    text.text = ""
-                    for item in t["items"]:
-                        text.text += "• {}\n".format(utils.fixTags(item,m,args.nohtml))
-                else:
-                    text.text = utils.fixTags(t,m,args.nohtml)
-                    for match in re.finditer(r'{@hit \+?(.*?)}.*?{@damage (.*?)}',t):
-                        if match.group(1) and match.group(2):
-                            attack = ET.SubElement(action, 'attack')
-                            attack.text = "{}|{}|{}".format(utils.remove5eShit(t['name']),utils.fixTags(match.group(1),m,False).replace(' ',''),utils.fixTags(match.group(2),m,False).replace(' ',''))
-                continue
-            for e in t['entries']:
-                if isinstance(e, dict):
-                    if "colLabels" in e:
-                        text = ET.SubElement(action, 'text')
-                        if 'caption' in e:
-                            text.text = "{}\n".format(e['caption'])
-                        text = ET.SubElement(action, 'text')
-                        text.text = " | ".join(
-                            [utils.remove5eShit(x) for x in e['colLabels']])
-                        for row in e['rows']:
-                            rowthing = []
-                            for r in row:
-                                if isinstance(r, dict) and 'roll' in r:
-                                    rowthing.append(
-                                        "{}-{}".format(
-                                            r['roll']['min'],
-                                            r['roll']['max']) if 'min' in r['roll'] else str(
-                                            r['roll']['exact']))
-                                else:
-                                    rowthing.append(utils.fixTags(r,m,args.nohtml))
-                            text = ET.SubElement(action, 'text')
-                            text.text = " | ".join(rowthing)
-                    elif "entries" in e:
-                        text = ET.SubElement(action, 'text')
-                        subentries = []                    
-                        for sube in e["entries"]:
-                            if type(sube) == str:
-                                subentries.append(utils.remove5eShit(sube))
-                            elif type(sube) == dict and "text" in sube:
-                                subentries.append(utils.fixTags(sube["text"],m,args.nohtml))
-                        text.text = "\n".join(subentries)
-                    elif "items" in e:
-                        text = ET.SubElement(action, 'text')
-                        subentries = []                    
-                        for sube in e["items"]:
-                            if type(sube) == str:
-                                subentries.append(utils.remove5eShit(sube))
-                            elif type(sube) == dict and "text" in sube:
-                                subentries.append(utils.fixTags(sube["text"],m,args.nohtml))
-                            elif type(sube) == dict and "name" in sube and "entry" in sube:
-                                if args.nohtml:
-                                    subentries.append("{}".format(utils.fixTags(sube["name"],m,args.nohtml)) + utils.fixTags(sube["entry"],m,args.nohtml))
-                                else:
-                                    subentries.append("<i>{}</i>".format(utils.fixTags(sube["name"],m,args.nohtml)) + utils.fixTags(sube["entry"],m,args.nohtml))
-                        text.text = "\n".join(subentries)
-                    else:
-                        for i in e["items"]:
-                            text = ET.SubElement(action, 'text')
-                            if 'name' in i:
-                                text.text = "{}{}".format(
-                                    i['name'] + " ", utils.remove5eShit(i['entry']))
-                            else:
-                                text.text = "\n".join(
-                                    utils.remove5eShit(x) for x in i)
-                else:
-                    text = ET.SubElement(action, 'text')
-                    if type(e) == dict and e["type"] == "list" and "style" in e and e["style"] == "list-hang-notitle":
-                        text.text = ""
-                        for item in e["items"]:
-                            if args.nohtml:
-                                text.text += "• {}: {}\n".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml))
-                            else:
-                                text.text += "• <i>{}:</i> {}\n".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml))
-                    elif type(e) == dict and e["type"] == "list":
-                        text.text = ""
-                        for item in e["items"]:
-                            text.text += "• {}\n".format(utils.fixTags(item,m,args.nohtml))
-                    else:
-                        text.text = utils.fixTags(e,m,args.nohtml)
-                        for match in re.finditer(r'{@hit \+?(.*?)}.*?{@damage (.*?)}',e):
-                            if match.group(1) and match.group(2):
-                                attack = ET.SubElement(action, 'attack')
-                                attack.text = "{}|{}|{}".format(utils.remove5eShit(t['name']),utils.fixTags(match.group(1),m,False).replace(' ',''),utils.fixTags(match.group(2),m,False).replace(' ',''))
-
+                text.text = e
+                for match in re.finditer(r'(((\+|\-)?[0-9]*) to hit.*?|DC [0-9]+ .*? saving throw.*?)\(([0-9Dd\+\- ]+)\) .*? damage',e):
+                    if match.group(4):
+                        attack = ET.SubElement(action, 'attack')
+                        attack.text = "{}|{}|{}".format(utils.remove5eShit(t['name']),match.group(2).replace(' ','') if match.group(2) else "",match.group(4).replace(' ',''))
 
 
     if 'reaction' in m and m['reaction'] is not None:
@@ -501,174 +372,18 @@ def parseMonster(m, compendium, args):
             action = ET.SubElement(monster, 'reaction')
             name = ET.SubElement(action, 'name')
             name.text = utils.remove5eShit(t['name'])
-            for e in t['entries']:
-                if isinstance(e, dict):
-                    if "colLabels" in e:
-                        text = ET.SubElement(action, 'text')
-                        if 'caption' in e:
-                            text.text = "{}\n".format(e['caption'])
-                        text = ET.SubElement(action, 'text')
-                        text.text = " | ".join(
-                            [utils.remove5eShit(x) for x in e['colLabels']])
-                        for row in e['rows']:
-                            rowthing = []
-                            for r in row:
-                                if isinstance(r, dict) and 'roll' in r:
-                                    rowthing.append(
-                                        "{}-{}".format(
-                                            r['roll']['min'],
-                                            r['roll']['max']) if 'min' in r['roll'] else str(
-                                            r['roll']['exact']))
-                                else:
-                                    rowthing.append(utils.fixTags(r,m,args.nohtml))
-                            text = ET.SubElement(action, 'text')
-                            text.text = " | ".join(rowthing)
-                    elif "entries" in e:
-                        text = ET.SubElement(action, 'text')
-                        subentries = []                    
-                        for sube in e["entries"]:
-                            if type(sube) == str:
-                                subentries.append(utils.remove5eShit(sube))
-                            elif type(sube) == dict and "text" in sube:
-                                subentries.append(utils.fixTags(sube["text"],m,args.nohtml))
-                        text.text = "\n".join(subentries)
-                    elif "items" in e:
-                        text = ET.SubElement(action, 'text')
-                        subentries = []                    
-                        for sube in e["items"]:
-                            if type(sube) == str:
-                                subentries.append(utils.remove5eShit(sube))
-                            elif type(sube) == dict and "text" in sube:
-                                subentries.append(utils.fixTags(sube["text"],m,args.nohtml))
-                        text.text = "\n".join(subentries)
-                    else:
-                        for i in e["items"]:
-                            text = ET.SubElement(action, 'text')
-                            if 'name' in i:
-                                text.text = "{}{}".format(
-                                    i['name'] + " ", utils.remove5eShit(i['entry']))
-                            else:
-                                text.text = "\n".join(
-                                    utils.remove5eShit(x) for x in i)
-                else:
-                    text = ET.SubElement(action, 'text')
-                    if type(e) == dict and e["type"] == "list" and "style" in e and e["style"] == "list-hang-notitle":
-                        text.text = ""
-                        for item in e["items"]:
-                            if args.nohtml:
-                                text.text += "• {}: {}\n".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml))
-                            else:
-                                text.text += "• <i>{}:</i> {}\n".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml))
-                    elif type(e) == dict and e["type"] == "list":
-                        text.text = ""
-                        for item in e["items"]:
-                            text.text += "• {}\n".format(utils.fixTags(item,m,args.nohtml))
-                    else:
-                        text.text = utils.fixTags(e,m,args.nohtml)
+            for e in utils.getEntryString(t["entries"],m,args).split("\n"):
+                text = ET.SubElement(action, 'text')
+                text.text = e
 
     if 'variant' in m and m['variant'] is not None:
         for t in m['variant']:
             action = ET.SubElement(monster, 'action')
             name = ET.SubElement(action, 'name')
             name.text = "Variant: " + utils.remove5eShit(t['name'])
-            for e in t['entries']:
-                if isinstance(e, dict):
-                    if "colLabels" in e:
-                        text = ET.SubElement(action, 'text')
-                        if 'caption' in e:
-                            text.text = "{}\n".format(e['caption'])
-                        text = ET.SubElement(action, 'text')
-                        text.text = " | ".join(
-                            [utils.remove5eShit(x) for x in e['colLabels']])
-                        for row in e['rows']:
-                            rowthing = []
-                            for r in row:
-                                if isinstance(r, dict) and 'roll' in r:
-                                    rowthing.append(
-                                        "{}-{}".format(
-                                            r['roll']['min'],
-                                            r['roll']['max']) if 'min' in r['roll'] else str(
-                                            r['roll']['exact']))
-                                else:
-                                    rowthing.append(utils.fixTags(r,m,args.nohtml))
-                            text = ET.SubElement(action, 'text')
-                            text.text = " | ".join(rowthing)
-                    elif "entries" in e:
-                        if "name" in e:
-                            vaction = ET.SubElement(monster, 'action')
-                            vname = ET.SubElement(vaction, 'name')
-                            vname.text = utils.remove5eShit(e['name'])
-                        else:
-                            vaction = action
-                        text = ET.SubElement(vaction, 'text')
-                        subentries = []                    
-                        for sube in e["entries"]:
-                            if type(sube) == str:
-                                subentries.append(utils.remove5eShit(sube))
-                            elif type(sube) == dict and "text" in sube:
-                                subentries.append(utils.fixTags(sube["text"],m,args.nohtml))
-                        text.text = "\n".join(subentries)
-                    elif "items" in e:
-                        if "name" in e:
-                            vaction = ET.SubElement(monster, 'action')
-                            vname = ET.SubElement(vaction, 'name')
-                            vname.text = utils.remove5eShit(e['name'])
-                        else:
-                            vaction = action
-                        text = ET.SubElement(vaction, 'text')
-                        subentries = []                    
-                        for sube in e["items"]:
-                            if type(sube) == str:
-                                subentries.append(utils.remove5eShit(sube))
-                            elif type(sube) == dict and "text" in sube:
-                                subentries.append(utils.fixTags(sube["text"],m,args.nohtml))
-                        text.text = "\n".join(subentries)
-                    elif e["type"] == "spellcasting":
-                        scAction = ET.SubElement(monster, 'action')
-                        scName = ET.SubElement(scAction, 'name')
-                        scName.text = utils.remove5eShit(e['name'])
-                        text = ET.SubElement(scAction, 'text')
-                        text.text = "\n".join(utils.remove5eShit(x) for x in e["headerEntries"])
-                        if "will" in e:
-                            text = ET.SubElement(scAction, 'text')
-                            text.text = "At will: " + ", ".join(utils.remove5eShit(x) for x in e["will"])
-                        if "daily" in e:
-                            for k in e["daily"]:
-                                if k.endswith("e"):
-                                    text = ET.SubElement(scAction, 'text')
-                                    text.text = "{}/day each: {}".format(k[:-1],", ".join(utils.remove5eShit(x) for x in e["daily"][k]))
-                                else:
-                                    text = ET.SubElement(scAction, 'text')
-                                    text.text = "{}/day: {}".format(k,", ".join(utils.remove5eShit(x) for x in e["daily"][k]))
-                        if "footerEntries" in e:
-                                text = ET.SubElement(scAction, 'text')
-                                text.text = "\n".join(utils.remove5eShit(x) for x in e["footerEntries"])
-                    else:
-                        print(e)
-                        for i in e["entries"]:
-                            text = ET.SubElement(action, 'text')
-                            if 'name' in i:
-                                text.text = "{}{}".format(
-                                    i['name'] + " ", utils.remove5eShit(i['entry']))
-                            else:
-                                text.text = "\n".join(
-                                    utils.remove5eShit(x) for x in i)
-                else:
-                    text = ET.SubElement(action, 'text')
-                    if type(e) == dict and e["type"] == "list" and "style" in e and e["style"] == "list-hang-notitle":
-                        text.text = ""
-                        for item in e["items"]:
-                            if args.nohtml:
-                                text.text += "• {}: {}\n".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml))
-                            else:
-                                text.text += "• <i>{}:</i> {}\n".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml))
-                    elif type(e) == dict and e["type"] == "list":
-                        text.text = ""
-                        for item in e["items"]:
-                            text.text += "• {}\n".format(utils.fixTags(item,m,args.nohtml))
-                    else:
-                        text.text = utils.fixTags(e,m,args.nohtml)
-
+            for e in utils.getEntryString(t["entries"],m,args).split("\n"):
+                text = ET.SubElement(action, 'text')
+                text.text = e
 
     if 'legendary' in m:
         legendary = ET.SubElement(monster, 'legendary')
@@ -689,51 +404,32 @@ def parseMonster(m, compendium, args):
             if 'name' not in t:
                 t['name'] = ""
             name.text = utils.remove5eShit(t['name'])
-            for e in t['entries']:
-                if isinstance(e, dict):
-                    if "colLabels" in e:
-                        text = ET.SubElement(legendary, 'text')
-                        if 'caption' in e:
-                            text.text = "{}\n".format(e['caption'])
-                        text = ET.SubElement(legendary, 'text')
-                        text.text = " | ".join(
-                            [utils.remove5eShit(x) for x in e['colLabels']])
-                        for row in e['rows']:
-                            rowthing = []
-                            for r in row:
-                                if isinstance(r, dict) and 'roll' in r:
-                                    rowthing.append(
-                                        "{}-{}".format(
-                                            r['roll']['min'],
-                                            r['roll']['max']) if 'min' in r['roll'] else str(
-                                            r['roll']['exact']))
-                                else:
-                                    rowthing.append(utils.fixTags(r,m,args.nohtml))
-                            text = ET.SubElement(legendary, 'text')
-                            text.text = " | ".join(rowthing)
-                    else:
-                        for i in e["items"]:
-                            text = ET.SubElement(legendary, 'text')
-                            text.text = "{} {}".format(
-                                i['name'], utils.remove5eShit(i['entry']))
-                else:
-                    text = ET.SubElement(legendary, 'text')
-                    if type(e) == dict and e["type"] == "list" and "style" in e and e["style"] == "list-hang-notitle":
-                        text.text = ""
-                        for item in e["items"]:
-                            if args.nohtml:
-                                text.text += "• {}: {}\n".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml))
-                            else:
-                                text.text += "• <i>{}:</i> {}\n".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml))
-                    elif type(e) == dict and e["type"] == "list":
-                        text.text = ""
-                        for item in e["items"]:
-                            text.text += "• {}\n".format(utils.fixTags(item,m,args.nohtml))
-                    else:
-                        text.text = utils.fixTags(e,m,args.nohtml)
+            for e in utils.getEntryString(t["entries"],m,args).split("\n"):
+                text = ET.SubElement(legendary, 'text')
+                text.text = e
+
+    if 'mythic' in m:
+        mythic = ET.SubElement(monster, 'legendary')
+
+        if "mythicHeader" in m:
+            for h in m['mythicHeader']:
+                name = ET.SubElement(mythic, 'name')
+                name.text = "Mythic Actions"
+                mythic = ET.SubElement(monster, 'legendary')
+                text = ET.SubElement(mythic, 'text')
+                text.text = utils.remove5eShit(h)
+        for t in m['mythic']:
+            mythic = ET.SubElement(monster, 'legendary')
+            name = ET.SubElement(mythic, 'name')
+            if 'name' not in t:
+                t['name'] = ""
+            name.text = utils.remove5eShit(t['name'])
+            for e in utils.getEntryString(t["entries"],m,args).split("\n"):
+                text = ET.SubElement(mythic, "text")
+                text.text = e
 
     if 'legendaryGroup' in m:
-        with open("./data/bestiary/meta.json",encoding='utf-8') as f:
+        with open("./data/bestiary/legendarygroups.json",encoding='utf-8') as f:
             meta = json.load(f)
             f.close()
         for l in meta['legendaryGroup']:
@@ -743,6 +439,7 @@ def parseMonster(m, compendium, args):
                 legendary = ET.SubElement(monster, 'legendary')
                 name = ET.SubElement(legendary, 'name')
                 name.text = "Lair Actions"
+                legendary = ET.SubElement(monster, 'legendary')
                 for t in l['lairActions']:
                     if type(t) == str:
                         text = ET.SubElement(legendary, 'text')
@@ -756,54 +453,15 @@ def parseMonster(m, compendium, args):
                             text = ET.SubElement(legendary, 'text')
                             text.text = "• " + utils.fixTags(i,m,args.nohtml)
                         continue
-                    #legendary = ET.SubElement(monster, 'legendary')
-                    for e in t['entries']:
-                        if isinstance(e, dict):
-                            if "colLabels" in e:
-                                text = ET.SubElement(legendary, 'text')
-                                if 'caption' in e:
-                                    text.text = "{}\n".format(e['caption'])
-                                text = ET.SubElement(legendary, 'text')
-                                text.text = " | ".join(
-                                    [utils.remove5eShit(x) for x in e['colLabels']])
-                                for row in e['rows']:
-                                    rowthing = []
-                                    for r in row:
-                                        if isinstance(r, dict) and 'roll' in r:
-                                            rowthing.append(
-                                                "{}-{}".format(
-                                                    r['roll']['min'],
-                                                    r['roll']['max']) if 'min' in r['roll'] else str(
-                                                    r['roll']['exact']))
-                                        else:
-                                            rowthing.append(utils.fixTags(r,m,args.nohtml))
-                                    text = ET.SubElement(legendary, 'text')
-                                    text.text = " | ".join(rowthing)
-                            else:
-                                for i in e["items"]:
-                                    text = ET.SubElement(legendary, 'text')
-                                    text.text = "{} {}".format(
-                                        i['name'], utils.remove5eShit(i['entry']))
-                        else:
-                            text = ET.SubElement(legendary, 'text')
-                            if type(e) == dict and e["type"] == "list" and "style" in e and e["style"] == "list-hang-notitle":
-                                text.text = ""
-                                for item in e["items"]:
-                                    if args.nohtml:
-                                        text.text += "• {}: {}\n".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml))
-                                    else:
-                                        text.text += "• <i>{}:</i> {}\n".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml))
-                            elif type(e) == dict and e["type"] == "list":
-                                text.text = ""
-                                for item in e["items"]:
-                                    text.text += "• {}\n".format(utils.fixTags(item,m,args.nohtml))
-                            else:
-                                text.text = utils.fixTags(e,m,args.nohtml)
+                    for e in utils.getEntryString(t["entries"],m,args).split("\n"):
+                        text = ET.SubElement(legendary, 'text')
+                        text.text = e
 
             if 'regionalEffects' in l:
                 legendary = ET.SubElement(monster, 'legendary')
                 name = ET.SubElement(legendary, 'name')
                 name.text = "Regional Effects"
+                legendary = ET.SubElement(monster, 'legendary')
                 for t in l['regionalEffects']:
                     if type(t) == str:
                         text = ET.SubElement(legendary, 'text')
@@ -818,108 +476,16 @@ def parseMonster(m, compendium, args):
                             text.text = "• " + utils.fixTags(i,m,args.nohtml)
                         continue
                     #legendary = ET.SubElement(monster, 'legendary')
-                    for e in t['entries']:
-                        if isinstance(e, dict):
-                            if "colLabels" in e:
-                                text = ET.SubElement(legendary, 'text')
-                                if 'caption' in e:
-                                    text.text = "{}\n".format(e['caption'])
-
-                                text = ET.SubElement(legendary, 'text')
-                                text.text = " | ".join(
-                                    [utils.remove5eShit(x) for x in e['colLabels']])
-                                for row in e['rows']:
-                                    rowthing = []
-                                    for r in row:
-                                        if isinstance(r, dict) and 'roll' in r:
-                                            rowthing.append(
-                                                "{}-{}".format(
-                                                    r['roll']['min'],
-                                                    r['roll']['max']) if 'min' in r['roll'] else str(
-                                                    r['roll']['exact']))
-                                        else:
-                                            rowthing.append(utils.fixTags(r,m,args.nohtml))
-                                    text = ET.SubElement(legendary, 'text')
-                                    text.text = " | ".join(rowthing)
-                            else:
-                                for i in e["items"]:
-                                    text = ET.SubElement(legendary, 'text')
-                                    text.text = "{} {}".format(
-                                        i['name'], utils.remove5eShit(i['entry']))
-                        else:
-                            text = ET.SubElement(legendary, 'text')
-                            if type(e) == dict and e["type"] == "list" and "style" in e and e["style"] == "list-hang-notitle":
-                                text.text = ""
-                                for item in e["items"]:
-                                    if args.nohtml:
-                                        text.text += "• {}: {}\n".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml))
-                                    else:
-                                        text.text += "• <i>{}:</i> {}\n".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml))
-                            elif type(e) == dict and e["type"] == "list":
-                                text.text = ""
-                                for item in e["items"]:
-                                    text.text += "• {}\n".format(utils.fixTags(item,m,args.nohtml))
-                            else:
-                                text.text = utils.fixTags(e,m,args.nohtml)
-
-    if 'mythic' in m:
-        mythic = ET.SubElement(monster, 'legendary')
-
-        if "mythicHeader" in m:
-            for h in m['mythicHeader']:
+                    for e in utils.getEntryString(t["entries"],m,args).split("\n"):
+                        text = ET.SubElement(legendary, 'text')
+                        text.text = e
+            if 'mythicEncounter' in l:
+                mythic = ET.SubElement(monster, 'legendary')
                 name = ET.SubElement(mythic, 'name')
-                name.text = "Mythic Actions"
-                text = ET.SubElement(mythic, 'text')
-                text.text = utils.remove5eShit(h)
-        for t in m['mythic']:
-            mythic = ET.SubElement(monster, 'legendary')
-            name = ET.SubElement(mythic, 'name')
-            if 'name' not in t:
-                t['name'] = ""
-            name.text = utils.remove5eShit(t['name'])
-            for e in t['entries']:
-                if isinstance(e, dict):
-                    if "colLabels" in e:
-                        text = ET.SubElement(mythic, 'text')
-                        if 'caption' in e:
-                            text.text = "{}\n".format(e['caption'])
-
-                        text = ET.SubElement(mythic, 'text')
-                        text.text = " | ".join(
-                            [utils.remove5eShit(x) for x in e['colLabels']])
-                        for row in e['rows']:
-                            rowthing = []
-                            for r in row:
-                                if isinstance(r, dict) and 'roll' in r:
-                                    rowthing.append(
-                                        "{}-{}".format(
-                                            r['roll']['min'],
-                                            r['roll']['max']) if 'min' in r['roll'] else str(
-                                            r['roll']['exact']))
-                                else:
-                                    rowthing.append(utils.fixTags(r,m,args.nohtml))
-                            text = ET.SubElement(mythic, 'text')
-                            text.text = " | ".join(rowthing)
-                    else:
-                        for i in e["items"]:
-                            text = ET.SubElement(mythic, 'text')
-                            text.text = "{} {}".format(
-                                i['name'], utils.remove5eShit(i['entry']))
-                else:
+                name.text = "{} as a Mythic Encounter".format(m["name"])
+                for e in utils.getEntryString(l["mythicEncounter"],m,args).split("\n"):
                     text = ET.SubElement(mythic, 'text')
-                    if type(e) == dict and e["type"] == "list" and "style" in e and e["style"] == "list-hang-notitle":
-                        text.text = ""
-                        for item in e["items"]:
-                            if args.nohtml:
-                                text.text += "• {}: {}\n".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml))
-                            else:
-                                text.text += "• <i>{}:</i> {}\n".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml))
-                    elif type(e) == dict and e["type"] == "list":
-                        text.text = ""
-                        for item in e["items"]:
-                            text.text += "• {}\n".format(utils.fixTags(item,m,args.nohtml))
-                    else:
-                        text.text = utils.fixTags(e,m,args.nohtml)
+                    text.text = e
 
 
 
@@ -990,60 +556,9 @@ def parseMonster(m, compendium, args):
     description = ET.SubElement(monster, 'description')
     description.text = ""
     if 'entries' in m and not args.srd:
-       for t in m['entries']:
-            if type(t) == str:
-                description.text += utils.fixTags(t,m,args.nohtml) + "\n"
-                continue
-            if 'name' in t:
-                description.text += "<b>{}:</b>\n".format(utils.remove5eShit(t['name']))
-            if 'entries' in t:
-                for e in t['entries']:
-                    if isinstance(e, dict):
-                        if "colLabels" in e:
-                            if 'caption' in e:
-                                description.text += "{}\n".format(e['caption'])
+        description.text += utils.getEntryString(m["entries"],m,args)
 
-                            description.text += " | ".join(
-                                [utils.remove5eShit(x) for x in e['colLabels']]) + "\n"
-                            for row in e['rows']:
-                                rowthing = []
-                                for r in row:
-                                    if isinstance(r, dict) and 'roll' in r:
-                                        rowthing.append(
-                                            "{}-{}".format(
-                                                r['roll']['min'],
-                                                r['roll']['max']) if 'min' in r['roll'] else str(
-                                                r['roll']['exact']))
-                                    else:
-                                        rowthing.append(utils.fixTags(str(r),m,args.nohtml))
-                                description.text += " | ".join(rowthing) + "\n"
-                        elif "entries" in e:
-                            subentries = []                    
-                            for sube in e["entries"]:
-                                if type(sube) == str:
-                                    subentries.append(utils.fixTags(sube,m,args.nohtml))
-                                elif type(sube) == dict and "text" in sube:
-                                    subentries.append(utils.fixTags(sube["text"],m,args.nohtml))
-                            description.text += "\n".join(subentries)
-                        elif "items" in e:
-                            description.text += "\n".join([utils.fixTags(x,m,args.nohtml) for x in e["items"]])
-                        else:
-                            description.text += "{}".format(utils.fixTags(e,m,args.nohtml))
-                        description.text += "\n"
-                    else:
-                        if type(e) == dict and e["type"] == "list" and "style" in e and e["style"] == "list-hang-notitle":
-                            for item in e["items"]:
-                                description.text += "• <b>{}:</b> {}\n".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml))
-                            description.text += "\n"
-                        elif type(e) == dict and e["type"] == "list":
-                            for item in e["items"]:
-                                description.text += "• {}\n".format(utils.fixTags(item,m,args.nohtml))
-                            description.text += "\n"
-                        else:
-                            description.text += utils.fixTags(e,m,args.nohtml)
-                            description.text += "\n"
-
-    if sourcetext: description.text += "<i>Source: {}</i>".format(sourcetext)
+    if sourcetext: description.text += "\n<i>Source: {}</i>".format(sourcetext)
     if args.nohtml:
         description.text = re.sub('</?(i|b|spell)>', '', description.text)
     environment = ET.SubElement(monster, 'environment')

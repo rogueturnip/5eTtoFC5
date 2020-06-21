@@ -653,3 +653,98 @@ def getFriendlySource(source):
     if not srcfound:
         print("Could not find source: " + source)
     return friendly
+
+def getEntryString(e,m,args):
+    if type(e) == dict:
+        text = ""
+        if 'name' in e:
+            if e["type"] == "section":
+                if args.nohtml:
+                    text += "{}\n".format(fixTags(e['name'],m,args.nohtml))
+                else:
+                    text += "<b>{}</b>\n".format(fixTags(e['name'],m,args.nohtml))
+            else:
+                if args.nohtml:
+                    text += "{}. ".format(fixTags(e['name'],m,args.nohtml))
+                else:
+                    text += "<i>{}.</i> ".format(fixTags(e['name'],m,args.nohtml))
+        if e["type"] == "entries" or e["type"] == "section" or e["type"] == "variantSub":
+            text += getEntryString(e["entries"],m,args)
+        elif e['type'] == 'table':
+            if 'caption' in e:
+                if args.nohtml:
+                    text += "{}\n".format(e['caption'])
+                else:
+                    text += "<i>{}</i>\n".format(e['caption'])
+            text += " | ".join(
+                [fixTags(x,m,args.nohtml) for x in e['colLabels']]) + "\n"
+            for row in e['rows']:
+                rowthing = []
+                for r in row:
+                    if isinstance(r, dict) and 'roll' in r:
+                        rowthing.append(
+                            "{}-{}".format(
+                                r['roll']['min'],
+                                r['roll']['max']) if 'min' in r['roll'] else str(
+                                r['roll']['exact']))
+                    else:
+                        rowthing.append(getEntryString(r,m,args))
+                text += " | ".join(rowthing) + "\n"
+        elif e["type"] == "item":
+            if args.nohtml:
+                text += "• {}: {}".format(e["name"],getEntryString(e["entry"],m,args))
+            else:
+                text += "• <b>{}:</b> {}".format(e["name"],getEntryString(e["entry"],m,args))
+        elif e["type"] == "list":
+            if "style" in e and e["style"] == "list-hang-notitle":
+                text += getEntryString(e["items"],m,args)
+            elif "style" in e and e["style"] == "no-bullets":
+                text += getEntryString(e["items"],m,args)
+            else:
+                text += "\n".join(["• {}".format(getEntryString(x,m,args)) for x in e["items"]])
+        elif e["type"] == "inset":
+            if args.nohtml:
+                text += "------\n{}\n------".format(getEntryString(e["entries"],m,args))
+            else:
+                text += "------\n{}\n------".format(getEntryString(e["entries"],m,args))
+        elif e["type"] == "insetReadaloud":
+            if args.nohtml:
+                text += "------\n{}\n------".format(getEntryString(e["entries"],m,args))
+            else:
+                text += "------\n<i>{}</i>\n------".format(getEntryString(e["entries"],m,args))
+        elif e["type"] == "quote":
+            if args.nohtml:
+                text += "\n{}\n".format(getEntryString(e["entries"],m,args))
+                if "by" in e:
+                    text += " — {}\n".format(fixTags(e["by"],m,args.nohtml))
+            else:
+                text += "\n<i>{}</i>\n".format(getEntryString(e["entries"],m,args))
+                if "by" in e:
+                    text += "<i> — {}</i>\n".format(fixTags(e["by"],m,args.nohtml))
+        elif e["type"] == "spellcasting":
+            text += "\n".join(fixTags(x,m,args.nohtml) for x in e["headerEntries"])
+            if "will" in e:
+                text += "\n• At will: " + ", ".join(fixTags(x,m,args.nohtml) for x in e["will"])
+            if "daily" in e:
+                for k in e["daily"]:
+                    if k.endswith("e"):
+                        text += "\n• {}/day each: {}".format(k[:-1],", ".join(fixTags(x,m,args.nohtml) for x in e["daily"][k]))
+                    else:
+                        text += "\n• {}/day: {}".format(k,", ".join(fixTags(x,m,args.nohtml) for x in e["daily"][k]))
+            if "footerEntries" in e:
+                text += "\n".join(fixTags(x,m,args.nohtml) for x in e["footerEntries"])
+        elif e["type"] == "inline":
+            text += "".join([getEntryString(x,m,args) for x in e["entries"]])
+        elif e["type"] == "link":
+            if args.nohtml or e["href"]["type"] == "internal":
+                return e["text"]
+            else:
+                return "<a href=\"{}\">{}</a>".format(e["href"]["url"],e["text"])
+        else:
+            print("dont know type",e["type"])
+            print(e)
+        return text
+    elif type(e) == list:
+        return "\n".join([getEntryString(x,m,args) for x in e])
+    else:
+        return fixTags(str(e),m,args.nohtml)
