@@ -364,7 +364,7 @@ def parseMonster(m, compendium, args):
                 for match in re.finditer(r'(((\+|\-)?[0-9]*) to hit.*?|DC [0-9]+ .*? saving throw.*?)\(([0-9Dd\+\- ]+)\) .*? damage',e):
                     if match.group(4):
                         attack = ET.SubElement(action, 'attack')
-                        attack.text = "{}|{}|{}".format(utils.remove5eShit(t['name']),match.group(2).replace(' ','') if match.group(2) else "",match.group(4).replace(' ',''))
+                        attack.text = "{}|{}|{}".format(utils.remove5eShit(t['name']) if 'name' in t else "",match.group(2).replace(' ','') if match.group(2) else "",match.group(4).replace(' ',''))
 
 
     if 'reaction' in m and m['reaction'] is not None:

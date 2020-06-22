@@ -454,12 +454,16 @@ for file in args.inputJSON:
                 m['hp'] = { "special": str(m['hull']['hp']) }
                 if not 'trait' in m:
                     m['trait'] = []
+                if 'action' not in m:
+                    m['action'] = []
+                else:
+                    m['action'] = [ { "type": "entries", "entries": copy.deepcopy(m['action']) } ]
                 if 'hull' in m:
                     if args.nohtml:
                         m['trait'].append({
-                            "name": "Hull",
+                            "name": "Hull:",
+                            "type": "entries",
                             "entries": [
-                                " ",
                                 "Armor Class: {}".format(m['hull']['ac']),
                                 "Hit Points: {}{}{}".format(m['hull']['hp'],
                                         " (damage threshold {})".format(m['hull']['dt']) if 'dt' in m['hull'] else '',
@@ -467,10 +471,10 @@ for file in args.inputJSON:
                             ] })
                     else:
                         m['trait'].append({
-                            "name": "Hull",
+                            "name": "Hull:",
+                            "type": "entries",
                             "entries": [
-                                " ",
-                                "<i>Armor Class:</i> {}\n".format(m['hull']['ac']),
+                                "<i>Armor Class:</i> {}".format(m['hull']['ac']),
                                 "<i>Hit Points:</i> {}{}{}".format(m['hull']['hp'],
                                         " (damage threshold {})".format(m['hull']['dt']) if 'dt' in m['hull'] else '',
                                         "; " + m['hull']['hpNote'] if 'hpNote' in m['hull'] else "")
@@ -480,6 +484,7 @@ for file in args.inputJSON:
                         if args.nohtml:
                             trait = {
                                 "name": "Control:",
+                                "type": "entries",
                                 "entries": [
                                     "{}".format(c['name']),
                                     "Armor Class: {}".format(c['ac']),
@@ -491,6 +496,7 @@ for file in args.inputJSON:
                         else:
                             trait = {
                                 "name": "Control:",
+                                "type": "entries",
                                 "entries": [
                                     "<i>{}</i>".format(c['name']),
                                     "<i>Armor Class:</i> {}".format(c['ac']),
@@ -507,6 +513,7 @@ for file in args.inputJSON:
                         if args.nohtml:
                             trait = {
                                 "name": "Movement:",
+                                "type": "entries",
                                 "entries": [
                                     "{}".format(c['name']),
                                     "Armor Class: {}".format(c['ac']),
@@ -518,6 +525,7 @@ for file in args.inputJSON:
                         else:
                             trait = {
                                 "name": "Movement:",
+                                "type": "entries",
                                 "entries": [
                                     "<i>{}</i>".format(c['name']),
                                     "<i>Armor Class:</i> {}".format(c['ac']),
@@ -540,6 +548,7 @@ for file in args.inputJSON:
                         if args.nohtml:
                             trait = {
                                 "name": "Weapons:",
+                                "type": "entries",
                                 "entries": [
                                     "{}{}".format(c['name']," ({})".format(c["count"]) if 'count' in c else ""),
                                     "Armor Class: {}".format(c['ac']),
@@ -553,6 +562,7 @@ for file in args.inputJSON:
                         else:
                             trait = {
                                 "name": "Weapons:",
+                                "type": "entries",
                                 "entries": [
                                     "<i>{}{}</i>".format(c['name']," ({})".format(c["count"]) if 'count' in c else ""),
                                     "<i>Armor Class:</i> {}".format(c['ac']),
@@ -565,8 +575,6 @@ for file in args.inputJSON:
                                 }
                         if 'entries' in c:
                             trait['entries'] += c['entries']
-                        if 'action' not in m:
-                            m['action'] = []
                         m['action'].append(trait)
                 m['speed'] = "{} miles per hour ({} miles per day)".format(m['pace'],m['pace']*24)
             else:

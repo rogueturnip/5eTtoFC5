@@ -663,7 +663,7 @@ def getEntryString(e,m,args):
                     text += "{}\n".format(fixTags(e['name'],m,args.nohtml))
                 else:
                     text += "<b>{}</b>\n".format(fixTags(e['name'],m,args.nohtml))
-            else:
+            elif e["type"] != "item":
                 if args.nohtml:
                     text += "{}. ".format(fixTags(e['name'],m,args.nohtml))
                 else:
@@ -692,9 +692,9 @@ def getEntryString(e,m,args):
                 text += " | ".join(rowthing) + "\n"
         elif e["type"] == "item":
             if args.nohtml:
-                text += "• {}: {}".format(e["name"],getEntryString(e["entry"],m,args))
+                text += "• {} {}".format(e["name"]+(":" if e["name"][-1:] not in ".:" else ""),getEntryString(e["entry"],m,args))
             else:
-                text += "• <b>{}:</b> {}".format(e["name"],getEntryString(e["entry"],m,args))
+                text += "• <b>{}</b> {}".format(e["name"]+(":" if e["name"][-1:] not in ".:" else ""),getEntryString(e["entry"],m,args))
         elif e["type"] == "list":
             if "style" in e and e["style"] == "list-hang-notitle":
                 text += getEntryString(e["items"],m,args)
@@ -703,6 +703,8 @@ def getEntryString(e,m,args):
             else:
                 text += "\n".join(["• {}".format(getEntryString(x,m,args)) for x in e["items"]])
         elif e["type"] == "inset":
+            if "name" in e:
+                text += "\n"
             if args.nohtml:
                 text += "------\n{}\n------".format(getEntryString(e["entries"],m,args))
             else:
