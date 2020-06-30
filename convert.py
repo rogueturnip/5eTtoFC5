@@ -864,40 +864,9 @@ for file in args.inputJSON:
                         print("Skipping unoffical content: {} from {}".format(m['name'],utils.getFriendlySource(m['source'])))
                     continue
             if 'classFeature' not in m:
-                m['classFeature'] = []
-            if 'subclassFeature' not in m:
-                m['subclassFeature'] = []
-
-            for cf in d['classFeature']:
-                if args.skipua:
-                    if m['source'].startswith('UA'):
-                        if args.verbose:
-                            print("Skipping UA Content: ",m['name'])
-                        continue
-                if args.onlyofficial:
-                    if m['source'] not in args.onlyofficial:
-                        if args.verbose:
-                            print("Skipping unoffical content: {} from {}".format(m['name'],utils.getFriendlySource(m['source'])))
-                        continue
-                if cf['className'] != m['name'] or cf['classSource'] != m['source']:
-                    continue
-                m['classFeature'].append(copy.deepcopy(cf))
-            if 'subclassFeature' in d:
-                for cf in d['subclassFeature']:
-                    if args.skipua:
-                        if m['source'].startswith('UA'):
-                            if args.verbose:
-                                print("Skipping UA Content: ",m['name'])
-                            continue
-                    if args.onlyofficial:
-                        if m['source'] not in args.onlyofficial:
-                            if args.verbose:
-                                print("Skipping unoffical content: {} from {}".format(m['name'],utils.getFriendlySource(m['source'])))
-                            continue
-                    if cf['className'] != m['name'] or cf['classSource'] != m['source']:
-                        continue
-                    m['subclassFeature'].append(copy.deepcopy(cf))
-
+                m['classFeature'] = d['classFeature']
+            if 'subclassFeature' not in m and 'subclassFeature' in d:
+                m['subclassFeature'] = d['subclassFeature']
 
             if m['source'].startswith('UA'):
                 m['original_name'] = m['name']
