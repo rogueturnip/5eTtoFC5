@@ -568,9 +568,9 @@ def appendFluff(fluff,m,t='monsterFluff',nohtml=False):
                     else:
                         entries.append(e)
             elif "_copy" in f:
-                entries = appendFluff(fluff,f['_copy']['name'])
+                entries = appendFluff(fluff,f['_copy']['name'],t,nohtml)
             if "_appendCopy" in f:
-                entries = entries + appendFluff(fluff,f['_appendCopy']['name'])
+                entries = entries + appendFluff(fluff,f['_appendCopy']['name'],t,nohtml)
     return entries
 
 def findFluffImage(fluff,m,t='monsterFluff'):
@@ -581,7 +581,7 @@ def findFluffImage(fluff,m,t='monsterFluff'):
                     if 'href' in image and 'path' in image['href']:
                         return image['href']['path']
             elif "_copy" in f:
-                return findFluffImage(fluff,(f['_copy']['name']))
+                return findFluffImage(fluff,(f['_copy']['name']),t)
     return None
 
 
