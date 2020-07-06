@@ -46,6 +46,7 @@ args = parser.parse_args()
 
 tempdir = tempfile.mkdtemp(prefix="ddbtoxml_")
 
+nsuuid = uuid.UUID("17f0f0ec-e658-4b3f-911a-7c585a6ec519")
 
 numbers = ['zero','one','two','three','four']
 stats = {"str":"Strength","dex":"Dexterity","con":"Constitution","int":"Intelligence","wis":"Wisdom","cha":"Charisma"}
@@ -54,20 +55,22 @@ def fixTags(s):
     s = re.sub(r'{@([bi]) (.*?)}',r'<\1>\2</\1>', s)
     s = re.sub(r'{@spell (.*?)}', r'<spell>\1</spell>', s)
     s = re.sub(r'{@link (.*?)\|(.*?)?}', r'<a href="\2">\1</a>', s)
-    def createMLinks(matchobj):
-        return "<a href=\"/monster/{}\">{}</a>".format(slugify(matchobj.group(1)),matchobj.group(2))
-    s = re.sub(r'{@creature (.*?)\|\|(.*?)?}', createMLinks, s)
     def createMLink(matchobj):
-        return "<a href=\"/monster/{}\">{}</a>".format(slugify(matchobj.group(1)),matchobj.group(1).title())
-    s = re.sub(r'{@creature (.*?)}', createMLink, s)
+        return "<a href=\"/monster/{}\">{}</a>".format(slugify(matchobj.group(1)),matchobj.group(5) if matchobj.group(5) else matchobj.group(1).title())
+    s = re.sub(r'{@creature (.*?)(\|(.*?))?(\|(.*?))?}', createMLink, s)
     def createILink(matchobj):
         return "<a href=\"/item/{}\">{}</a>".format(slugify(matchobj.group(1)),matchobj.group(1).title())
     s = re.sub(r'{@item (.*?)(\|.*?)?}', createILink, s)
-    def createCLink(matchobj):
+    def createPLink(matchobj):
         return "<a href=\"/page/{}\">{}</a>".format(slugify(matchobj.group(1)),matchobj.group(1).title())
-    s = re.sub(r'{@class (.*?)}', createCLink, s)
-    s = re.sub(r'{@condition (.*?)}', createCLink, s)
-
+    s = re.sub(r'{@class (.*?)}', createPLink, s)
+    s = re.sub(r'{@condition (.*?)}', createPLink, s)
+    def createALink(matchobj):
+        return "<a href=\"/page/{}\">{}</a>".format(slugify(matchobj.group(2)),matchobj.group(1))
+    s = re.sub(r'{@adventure (.*?)\|.*?\|.*?\|(.*?)}', createALink, s)
+#    def createBLink(matchobj):
+#        return "<a href=\"/module/page/{}\">{}</a>".format(slugify(matchobj.group(1)),matchobj.group(1).title())
+#    s = re.sub(r'{@book (.*?)\|(.*?)|.*?\|(.*?)}', createBLink, s)
     if '{@' in s:
         s = utils.remove5eShit(s)
 
@@ -77,7 +80,11 @@ def fixTags(s):
 
 def processSection(order,d,mod,parentuuid=None,parentname=None):
     suborder = 0
-    sectionuuid = str(uuid.uuid4())
+    if 'id' not in d:
+        if 'name' not in d:
+            d['name'] = parentname + "-child" + str(order)
+        d['id'] = str(order)+d['name']
+    sectionuuid = str(uuid.uuid5(bookuuid,d["id"]))
     if parentuuid:
         page = ET.SubElement(module, 'page', { 'id': sectionuuid, 'parent': parentuuid, 'sort': str(order)})
     else:
@@ -134,7 +141,7 @@ def processSection(order,d,mod,parentuuid=None,parentname=None):
                             "name": "Proficiencies",
                             "entries": [
                                 { "type": "entries", "name": "Armor:", "entries": [
-                                    re.sub(r'(light|medium|heavy),',r'\1 armor,',", ".join(cl['startingProficiencies']['armor'])).capitalize() if 'armor' in cl['startingProficiencies'] else "None"
+                                    re.sub(r'(light|medium|heavy),',r'\1 armor,',", ".join([x if type(x) != dict else x['full'] for x in cl["startingProficiencies"]["armor"]])).capitalize() if 'armor' in cl['startingProficiencies'] else "None"
                                 ] },
                                 { "type": "entries", "name": "Weapons:", "entries": [
                                     re.sub(r'(simple|martial),',r'\1 weapons,',", ".join(cl['startingProficiencies']['weapons'])).capitalize() if 'weapons' in cl['startingProficiencies'] else "None"
@@ -156,10 +163,21 @@ def processSection(order,d,mod,parentuuid=None,parentname=None):
                                 if 'source' in sc and sc['source'] != "PHB":
                                     continue
                                 for scf in sc["subclassFeatures"]:
+                                    scfs = []
+                                    featureRefs = scf.split('|')
+                                    for cf in fluff['subclassFeature']:
+                                        if cf["name"] == featureRefs[0] and \
+                                                cf["className"] == featureRefs[1] and \
+                                                cf["subclassShortName"] == featureRefs[3] and \
+                                                (cf["subclassSource"] == featureRefs[4] or (featureRefs[4] == "" and cf["subclassSource"])) and \
+                                                int(featureRefs[5]) == cf["level"] and \
+                                                (cf["classSource"] == featureRefs[2] or (featureRefs[2] == "" and cf["classSource"] == 'PHB')) and \
+                                                (len(featureRefs) == 6 or cf["source"] == featureRefs[6]):
+                                            scfs.append(cf)
                                     subclasses.append({
                                         "name": sc["name"],
                                         "type": "entries",
-                                        "entries": copy.deepcopy(scf)
+                                        "entries": copy.deepcopy(scfs)
                                     })
                             classfeatures['entries'].append({
                                 "type": "entries",
@@ -192,7 +210,7 @@ def processSection(order,d,mod,parentuuid=None,parentname=None):
         with open("./data/fluff-races.json",encoding='utf-8') as f:
             fluff = json.load(f)
             f.close()
-        for race in fluff['race']:
+        for race in fluff['raceFluff']:
             if 'source' in race and race['source'] != 'PHB':
                 continue
             elif re.match(r'.*? \(.*?\)',race['name']):
@@ -263,14 +281,16 @@ def processSection(order,d,mod,parentuuid=None,parentname=None):
                     subtraits += r['entries']
 
                 traits.append({ "type": "entries", "entries": subtraits })
-                for r in fluff['race']:
+                for r in fluff['raceFluff']:
                     if 'source' in r and r['source'] != 'PHB':
                         continue
                     subracere = re.match(r'{} \((.*?)\)'.format(race['name']),r['name'])
                     if subracere:
                         subracename = subracere.group(1)
+                        if 'entries' not in r:
+                            r['entries'] = utils.appendFluff(fluff,r['name'],'raceFluff')
                         subrace = copy.deepcopy(r['entries'])
-                        if 'images' in r:
+                        if 'images' in r and r['images']:
                             subrace = r['images'] + entries
                         for rs in rdata['subraces']:
                             if 'source' in race and race['source'] != 'PHB':
@@ -331,7 +351,7 @@ def processSection(order,d,mod,parentuuid=None,parentname=None):
         with open("./data/backgrounds.json",encoding='utf-8') as f:
             bgs = json.load(f)
             f.close()
-        for bg in fluff['background']:
+        for bg in fluff['backgroundFluff']:
             if 'source' in bg and bg['source'] != 'PHB':
                 continue
             elif re.match(r'Variant .*? \(.*?\)',bg['name']):
@@ -342,7 +362,7 @@ def processSection(order,d,mod,parentuuid=None,parentname=None):
                     continue
                 elif 'entries' in bgd:
                     entries += bgd['entries']
-            for bgv in fluff['background']:
+            for bgv in fluff['backgroundFluff']:
                 if re.match(r'Variant {} \(.*?\)'.format(bg['name']),bgv['name']):
                     variant = copy.deepcopy(bgv['entries'])
                     for bgvd in bgs['background']:
@@ -425,6 +445,17 @@ def processSection(order,d,mod,parentuuid=None,parentname=None):
 
     for e in d['entries']:
         if type(e) == dict:
+            if e['type'] == 'entries' and 'name' in e:
+                isSubsection = False
+                for sec in bookref["contents"]:
+                    if sec['name'] == parentname and 'headers' in sec:
+                        for header in sec['headers']:
+                            if type(header) == dict and header["header"] == e['name']:
+                                suborder += 1
+                                isSubsection = True
+                                subpage = processSection(suborder,e,mod,sectionuuid,d['name'])
+                if isSubsection:
+                    continue
             if e['type'] == 'insetReadaloud':
                 content.text += "<blockquote class=\"read\">\n"
                 for x in e['entries']:
@@ -576,6 +607,8 @@ def getEntry(e):
             content += "<ul>\n"
             for i in e['items']:
                 if type(i) == dict:
+                    if 'entries' in i:
+                        i['entry'] = "\n".join(i['entries'])
                     content += "<li><b>{}</b> {}</li>".format(i['name'],fixTags(i['entry']))
                 else:
                     content += "<li>{}</li>\n".format(fixTags(i))
@@ -697,8 +730,12 @@ for book in b[bookkey]:
 
     if 'author' not in book:
         book['author'] = "Wizards RPG Team"
+    global bookuuid
+    global bookref
+    bookref = book
+    bookuuid = uuid.uuid5(nsuuid,book["id"])
     module = ET.Element(
-        'module', { 'id': slugify(book["id"] + " " + book["name"]),'version': "{:.0f}".format(time.time()) } )
+        'module', { 'id': str(bookuuid),'version': "{:.0f}".format(time.time()) } )
     name = ET.SubElement(module, 'name')
     name.text = book['name']
     author = ET.SubElement(module, 'author')
@@ -713,8 +750,12 @@ for book in b[bookkey]:
     slug = ET.SubElement(module, 'slug')
     slug.text = slugify(book['name'])
     description = ET.SubElement(module, 'description')
-    description.text = "By {}\nPublished {}".format(book['author'],book['published'])
+    description.text = ""
+    if args.adventure:
 
+        description.text += "An adventure for levels {} to {}\nStoryline: {}\n".format(book['level']['start'],book['level']['end'],book['storyline'])
+    description.text += "By {}\nPublished {}".format(book['author'],book['published'])
+    
     order = 0
     for d in data['data']:
         if d['type'] == "section":
