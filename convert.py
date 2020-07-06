@@ -717,7 +717,16 @@ for file in args.inputJSON:
             m = copy.deepcopy(race)
             if args.srd:
                 if 'srd' not in m or not m['srd']:
-                    continue
+                    if 'subraces' in m:
+                        hasSRD = False
+                        for sr in m['subraces']:
+                            if 'srd' in sr:
+                                hasSRD = True
+                                break
+                        if not hasSRD:
+                            continue
+                    else:
+                        continue
                 elif type(m['srd']) == str:
                     m['original_name']=m['name']
                     m['name'] = m['srd']
@@ -988,6 +997,9 @@ for file in args.inputJSON:
             f.close()
         if 'variant' in mv:
             for v in mv['variant']:
+                if args.srd:
+                    if 'srd' not in v['inherits'] or not v['inherits']['srd']:
+                        continue
                 if 'age' in m and m['age'].lower() in excludedages:
                     if args.verbose:
                         print ("SKIPPING",m['age'],"ITEM:",m['name'])
