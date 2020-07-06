@@ -207,6 +207,11 @@ def parseClass(m, compendium, args):
                 spellslots.text = ", ".join(str(e) for e in slots[currentspellevel])
         for featureRef in m['classFeatures']:
             feature = {}
+#classFeature UID
+#<name>|<className>|<classSource>|<level>|<source>
+#subclassFeature UID
+#0       1           2               3                   4               5       6
+#<name>|<className>|<classSource>|<subclassShortName>|<subclassSource>|<level>|<source>
             for cf in m["classFeature"]:
                 if type(featureRef) == str:
                     featureRefs = featureRef.split('|')
