@@ -1012,12 +1012,9 @@ for file in args.inputJSON:
                             if args.verbose:
                                 print ("SKIPPING",m['age'],"ITEM:",m['name'])
                             continue
-                        itemMatch = False
-                        for k in req:
-                            if k in m and m[k] == req[k]:
-                                itemMatch = True
-                            else:
-                                itemMatch = False
+                        if args.srd:
+                            req["srd"] = True
+                        itemMatch = all([k in m and m[k] == req[k] for k in req])
                         if 'excludes' in v:
                             for ex in v['excludes']:
                                 if type(v['excludes'][ex]) == list:
@@ -1079,7 +1076,7 @@ for file in args.inputJSON:
                                 print("Parsing " + mm['name'],len(mm))
                             parseItem(mm, compendium, args)
                             iwins += 1
-                if 'items' in v:
+                if 'items' in v and len(v['items']) > 1 and not args.nohtml:
                     if ignoreError:
                         try:
                             parseItem(v, compendium, args)

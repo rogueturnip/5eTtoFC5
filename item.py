@@ -41,7 +41,10 @@ def parseItem(m, compendium, args):
     name = ET.SubElement(itm, 'name')
     name.text = m['name']
 
-    heading = ET.SubElement(itm, 'heading')
+    if args.nohtml:
+        heading = ET.SubElement(itm, 'detail')
+    else:
+        heading = ET.SubElement(itm, 'heading')
     headings = []
 
     typ = ET.SubElement(itm, 'type')
@@ -82,6 +85,8 @@ def parseItem(m, compendium, args):
             headings.append("Generic Variant")
 
     if 'wondrous' in m and m['wondrous']:
+        magic = ET.SubElement(itm, 'magic')
+        magic.text = "1"
         headings.append("Wondrous item")
         if 'type' not in m:
             typ.text = 'W'
@@ -238,18 +243,23 @@ def parseItem(m, compendium, args):
             m['entries'].append("When you drink this potion, you gain resistance to {} damage for 1 hour.".format(m['resist']))
 
     if 'stealth' in m and m['stealth']:
+        stealth = ET.SubElement(itm, 'stealth')
+        stealth.text = "1"
         m['entries'].append("The wearer has disadvantage on Stealth (Dexterity) checks.")
 
-    if 'strength' in m and m['type'] == "HA":
-        m['entries'].append("If the wearer has a Strength score lower than {}, their speed is reduced by 10 feet.".format(m['strength']))
+    if 'strength' in m:
+        strength = ET.SubElement(itm, 'strength')
+        strength.text = str(m['strength'])
+        if m['type'] == "HA":
+            m['entries'].append("If the wearer has a Strength score lower than {}, their speed is reduced by 10 feet.".format(m['strength']))
 
     heading.text = ", ".join(headings)
     
-    if args.nohtml:
-        try:
-            itm.remove(heading)
-        except:
-            pass
+#    if args.nohtml:
+#        try:
+#            itm.remove(heading)
+#        except:
+#            pass
 
     if 'items' in m:
         if 'scfType' in m:
