@@ -97,7 +97,11 @@ def processSection(order,d,mod,parentuuid=None,parentname=None):
     else:
         content.text = "<h1>{}</h1>\n".format(d['name'])
     slug = ET.SubElement(page,'slug')
-    slug.text = slugify(d['name'])
+    sectionslug = slugify(d['name'])
+    if sectionslug in slugs:
+        sectionslug = slugify(d['name']) + str(len([i for i in slugs if sectionslug in i]))
+    slug.text = slugify(sectionslug)
+    slugs.append(sectionslug)
     if d['name'] == "Classes" and args.book.lower() == 'phb':
         add_fluff = ['barbarian','bard','cleric','druid','fighter','monk','paladin','ranger','rogue','sorcerer','warlock','wizard']
         for fl in add_fluff:
@@ -454,6 +458,7 @@ def processSection(order,d,mod,parentuuid=None,parentname=None):
                                 suborder += 1
                                 isSubsection = True
                                 subpage = processSection(suborder,e,mod,sectionuuid,d['name'])
+                                content.text += "\n<a href=\"/page/{}\">{}</a>\n<br>\n".format(subpage,e['name'])
                 if isSubsection:
                     continue
             if e['type'] == 'insetReadaloud':
@@ -489,6 +494,14 @@ def processSection(order,d,mod,parentuuid=None,parentname=None):
                             content.text += "</ul>\n"
                         elif se['type'] == "entries":
                             if 'name' in se:
+                                isSubsection = False
+                                if re.match(r'^[A-Z]?[0-9]+([-–—][A-Z]?[0-9]+)?\.',se['name']) and not isSubsection:
+                                    suborder += 1
+                                    isSubsection = True
+                                    subpage = processSection(suborder,se,mod,sectionuuid,d['name'])
+                                    content.text += "\n<a href=\"/page/{}\">{}</a>\n<br>\n".format(subpage,se['name'])
+                                if isSubsection:
+                                    continue
                                 if parentuuid:
                                     content.text += "<h4>{}</h4>\n".format(se['name'])
                                 else:
@@ -592,7 +605,7 @@ def processSection(order,d,mod,parentuuid=None,parentname=None):
     if parentname:
         content.text += "<br>\n<a href=\"/page/{}\">{}</a>\n<br>\n".format(slugify(parentname),parentname)
     content.text = content.text.rstrip()
-    return slugify(d['name'])
+    return slugify(sectionslug)
 
 def getEntry(e):
     if type(e) == dict:
@@ -691,7 +704,7 @@ def getTable(e):
     if 'colLabels' in e:
         content += "<thead><tr>\n"
         for i in range(len(e['colLabels'])):
-            content += "<td style=\"{}\">{}</td>".format(e['colStyles'][i],fixTags(e['colLabels'][i]))
+            content += "<td class=\"{}\">{}</td>".format(e['colStyles'][i] if 'colStyles' in e else '',fixTags(e['colLabels'][i]))
         content += "</thead></tr>\n"
     content += "<tbody>\n"
     for row in e['rows']:
@@ -734,6 +747,7 @@ for book in b[bookkey]:
     global bookref
     bookref = book
     bookuuid = uuid.uuid5(nsuuid,book["id"])
+    slugs = []
     module = ET.Element(
         'module', { 'id': str(bookuuid),'version': "{:.0f}".format(time.time()) } )
     name = ET.SubElement(module, 'name')
