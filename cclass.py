@@ -16,8 +16,9 @@ def parseClass(m, compendium, args):
     numberofSkills=""
     if m['source'] == "UASidekicks":
         m['hd'] = { "number": 1, "faces": 10 }
-        m["startingProficiencies"] = {'skills':[]}
-        
+        m["startingProficiencies"] = {}   
+    if 'skills' not in m['startingProficiencies']:
+        m['startingProficiencies']['skills'] = []
     Class = ET.SubElement(compendium, 'class')
     name = ET.SubElement(Class, 'name')
     name.text = m['name']
@@ -30,7 +31,6 @@ def parseClass(m, compendium, args):
     proficiency = ET.SubElement(Class, 'proficiency')
     proficiencyList = []
     numSkills = ET.SubElement(Class, 'numSkills')
-
     for skill in m['startingProficiencies']['skills']:
         if 'choose' in skill and 'from' in skill['choose']:
             skillList = skill['choose']['from']
@@ -222,7 +222,7 @@ def parseClass(m, compendium, args):
                 (len(featureRefs) == 4 or cf["source"] == featureRefs[4]):
                     feature = cf
                     break
-            if feature['level'] != (level+1):
+            if not feature or feature['level'] != (level+1):
                 continue
             if 'name' in feature and feature['name'] == "Ability Score Improvement":
                 attributes = {"level": str(level+1),"scoreImprovement":"YES"}
