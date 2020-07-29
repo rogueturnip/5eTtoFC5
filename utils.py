@@ -168,13 +168,23 @@ def convertAlignList(s):
 def modifyMonster(m,mods):
     for mod in mods:
         if mod == '*':
-            if mods[mod]["mode"] == "replaceTxt":
-                mr = mods[mod]["replace"]
-                mw = mods[mod]["with"]
-                mf = ""
-                if "flags" in mods[mod]:
-                    mf = mods[mod]["flags"]
-                m = modRepl(m,mr,mw,mf)
+            if type(mods[mod]) == list:
+                for amod in mods[mod]:
+                    if amod["mode"] == "replaceTxt":
+                        mr = amod["replace"]
+                        mw = amod["with"]
+                        mf = ""
+                        if "flags" in amod:
+                            mf = amod["flags"]
+                        m = modRepl(m,mr,mw,mf)
+            else:
+                if mods[mod]["mode"] == "replaceTxt":
+                    mr = mods[mod]["replace"]
+                    mw = mods[mod]["with"]
+                    mf = ""
+                    if "flags" in mods[mod]:
+                        mf = mods[mod]["flags"]
+                    m = modRepl(m,mr,mw,mf)
         elif mod == 'trait' or mod == 'action' or mod == 'reaction' or mod == 'legendary':
             if mod not in m:
                 m[mod] = []

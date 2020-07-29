@@ -19,7 +19,7 @@ def parseMonster(m, compendium, args):
                 f.close()
             mcpy = copy.deepcopy(m)
             for mn in d['monster']:
-                if mn['name'] == mcpy['_copy']['name']:
+                if mn['name'].lower() == mcpy['_copy']['name'].lower():
                     if '_copy' in mn:
                         if args.verbose:
                             print("ANOTHER COPY: " + mn['name'] + " from " + mn['_copy']['name'] + " in " + mn['_copy']['source'])
