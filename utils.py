@@ -76,7 +76,7 @@ def remove5eShit(s):
     s = re.sub(r'{@h}', r'', s)
     s = re.sub(r'{@recharge (.*?)}', r'(Recharge \1-6)', s)
     s = re.sub(r'{@recharge}', r'(Recharge 6)', s)
-    s = re.sub(r'{@dice (.*?)(\|.*?)}', r'\1', s)
+    s = re.sub(r'{@dice (.*?)(\|.*?)?}', r'\1', s)
     s = re.sub(r'{@scaledice (.*?)\|(.*?)\|(.*?)}', r'\3', s)
     s = re.sub(r'{@scaledamage (.*?)\|(.*?)\|(.*?)}', r'\3', s)
     s = re.sub(r'{@table (.*?)\|(.*?)\|(.*?)}', r'\3', s)
