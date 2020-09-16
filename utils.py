@@ -680,6 +680,8 @@ def getEntryString(e,m,args):
                     text += "<i>{}.</i> ".format(fixTags(e['name'],m,args.nohtml))
         if e["type"] == "entries" or e["type"] == "section" or e["type"] == "variantSub":
             text += getEntryString(e["entries"],m,args)
+        elif e["type"] == "variantInner":
+            text += "\n"+getEntryString(e["entries"],m,args)
         elif e['type'] == 'table':
             if 'caption' in e:
                 if args.nohtml:

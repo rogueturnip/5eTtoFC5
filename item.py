@@ -356,12 +356,12 @@ def parseItem(m, compendium, args):
 
     if 'entries' in m:
         for e in m['entries']:
-            if "colLabels" in e:
+            if type(e) == dict and e['type'] == 'table':
                 if 'caption' in e:
                     bodyText.text += "{}\n".format(e['caption'])
-                bodyText.text += " | ".join([utils.remove5eShit(x)
-                                        for x in e['colLabels']])
-                bodyText.text += "\n"
+                if 'colLabels' in e:
+                    bodyText.text += " | ".join([utils.remove5eShit(x)
+                                        for x in e['colLabels']])+"\n"
                 for row in e['rows']:
                     rowthing = []
                     for r in row:
@@ -422,10 +422,13 @@ def parseItem(m, compendium, args):
             else:
                 if type(e) == dict and e["type"] == "list" and "style" in e and e["style"] == "list-hang-notitle":
                     for item in e["items"]:
-                        if args.nohtml:
-                            bodyText.text += "• {}: {}".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml)) + "\n"
+                        if type(item) == dict:
+                            if args.nohtml:
+                                bodyText.text += "• {}: {}".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml)) + "\n"
+                            else:
+                                bodyText.text += "• <i>{}:</i> {}".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml)) + "\n"
                         else:
-                            bodyText.text += "• <i>{}:</i> {}".format(item["name"],utils.fixTags(item["entry"],m,args.nohtml)) + "\n"
+                            bodyText.text += "• {}".format(utils.fixTags(item,m,args.nohtml)) + "\n"
                 elif type(e) == dict and e["type"] == "list":
                     for item in e["items"]:
                         if "entries" in item:
