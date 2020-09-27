@@ -46,7 +46,10 @@ def parseMonster(m, compendium, args):
                         m['hp'] = mcpy['hp']
                     if 'original_name' in mcpy:
                         m['original_name'] = mcpy['original_name']
-                    m['page'] = mcpy['page']
+                    if 'page' in mcpy:
+                        m['page'] = mcpy['page']
+                    elif 'page' in m:
+                        del m['page']
                     if 'image' in mcpy:
                         m['image'] = mcpy['image']
                     if '_mod' in mcpy['_copy']:

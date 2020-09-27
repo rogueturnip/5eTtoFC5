@@ -26,7 +26,10 @@ def parseRace(m, compendium, args):
                     m['source'] = mcpy['source']
                     if "otherSources" in mcpy:
                         m["otherSources"] = mcpy["otherSources"]
-                    m['page'] = mcpy['page']
+                    if 'page' in mcpy:
+                        m['page'] = mcpy['page']
+                    elif 'page' in m:
+                        del m['page']
                     if '_mod' in mcpy['_copy']:
                         m = utils.modifyItem(m,mcpy['_copy']['_mod'])
                     racefound = True
