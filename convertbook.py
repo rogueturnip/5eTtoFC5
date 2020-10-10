@@ -15,6 +15,9 @@ import time
 from text_to_num import alpha2digit
 from wand.image import Image
 import zipfile
+import urllib.parse
+import urllib.request
+import math
 
 # Argument Parser
 parser = argparse.ArgumentParser(
@@ -55,17 +58,34 @@ nsuuid = uuid.UUID("17f0f0ec-e658-4b3f-911a-7c585a6ec519")
 numbers = ['zero','one','two','three','four']
 stats = {"str":"Strength","dex":"Dexterity","con":"Constitution","int":"Intelligence","wis":"Wisdom","cha":"Charisma"}
 
-def fixTags(s,d=None,p=None):
+def fixTags(s,d=None,p=None,noencounter=False):
     s = re.sub(r'{@([bi]) (.*?)}',r'<\1>\2</\1>', s)
-    s = re.sub(r'{@spell (.*?)}', r'<spell>\1</spell>', s)
     s = re.sub(r'{@link (.*?)\|(.*?)?}', r'<a href="\2">\1</a>', s)
-    if args.adventure and d and re.search(r'{@creature (.*?)(\|(.*?))?(\|(.*?))?}', s):
+    def dice(m):
+        title = ''
+        roll = re.sub(r'#\$.*default=([0-9]*).*\$#',r'\1',m.group(1))
+        if type(p) == dict and p and 'name' in p:
+            title = '/{}'.format(urllib.parse.quote(p['name']))
+        elif not p and type(d) == dict and d and 'name' in d:
+            title = '/{}'.format(urllib.parse.quote(d['name']))
+        if m.group(2):
+            return '<a href="/roll/{0}{2}">{1}</a>'.format(roll,m.group(2),title)
+        else:
+            return '<a href="/roll/{0}{1}">{0}</a>'.format(roll,title)
+    def dicepre(m):
+        if m.group(1):
+            return m.group(0)
+        else:
+            return "{{@dice {}}}".format(m.group(2))
+    s = re.sub(r'(<a [^>]*>|{@[^}]*)?([0-9]*[dD][0-9]+( *[+-] *([0-9]*[dD][0-9]+( *[+-] *[0-9]+)?|[0-9]+))?)', dicepre, s)
+    s = re.sub(r'{@dice (.*?)(?:\|(.*?))?}', dice, s)
+    if args.adventure and d and re.search(r'{@creature (.*?)(\|(.*?))?(\|(.*?))?}', s) and not re.match(r'^{@creature (.*?)(\|(.*?))?(\|(.*?))?}$',s) and not noencounter:
         s2 = alpha2digit(s,"en")
         encounterbaseslug = d['currentslug'] + "-encounter"
         encounterslug = encounterbaseslug + str(len([i for i in slugs if encounterbaseslug in i]))
         sectionuuid = str(uuid.uuid5(bookuuid,encounterslug))
-        encounter = ET.SubElement(module, 'encounter', { 'id': sectionuuid, 'parent': d['currentpage'], 'sort': str(99+len([i for i in slugs if encounterbaseslug in i])) })
-        encountername = "Encounter {}: {}".format(len([i for i in slugs if encounterbaseslug in i])+1,p['name'] if 'name' in p and type(p) == dict else d['pagetitle'])
+        encounter = ET.SubElement(module, 'encounter', { 'id': sectionuuid, 'parent': d['subsection'] if 'subsection' in d else d['currentpage'], 'sort': str(99+len([i for i in slugs if encounterbaseslug in i])) })
+        encountername = "Encounter {}: {}".format(len([i for i in slugs if encounterbaseslug in i])+1,p['name'] if 'name' in p and type(p) == dict else d['subsectionname'] if 'subsectionname' in d else d['pagetitle'])
         #if encountername.startswith("Encounter 3: C6."):
         #    raise RuntimeError("Stop...")
         ET.SubElement(encounter,'name').text = encountername
@@ -74,7 +94,7 @@ def fixTags(s,d=None,p=None):
         slugs.append(encounterslug)
         #if parent:
         #    parent['entries'].append('<a href="/encounter/{}">{}</a>'.format(encounterslug,encountername))
-        s = '<h4><em><a href="/encounter/{}">Encounter {}</a></em></h4>\n{}'.format(encounterslug,len([i for i in slugs if encounterbaseslug in i]),s)
+        s = '<p style="text-align: right; font-style: italic; font-weight: bold; text-decoration: underline; font-variant:small-caps;"><a href="/encounter/{}">Encounter {}</a></p>\n{}'.format(encounterslug,len([i for i in slugs if encounterbaseslug in i]),s)
         monsterids = []
         for creature in re.finditer(r'([0-9]+)?( [A-Za-z]*)? ?{@creature (.*?)(\|(.*?))?(\|(.*?))?}',s2):
             for i in range(len(creature.group(3))):
@@ -93,15 +113,26 @@ def fixTags(s,d=None,p=None):
         monster = slugify(matchobj.group(1))
         if monster == "will-o-wisp":
             monster = "will-o--wisp"
-        return "<a href=\"/monster/{}\">{}</a>".format(monster,matchobj.group(5) if matchobj.group(5) else matchobj.group(1).title())
+        return "<a href=\"/monster/{}\">{}</a>".format(monster,matchobj.group(5) if matchobj.group(5) else matchobj.group(1))
     s = re.sub(r'{@creature (.*?)(\|(.*?))?(\|(.*?))?}', createMLink, s)
     def createILink(matchobj):
-        return "<a href=\"/item/{}\">{}</a>".format(slugify(matchobj.group(1)),matchobj.group(1).title())
+        return "<a href=\"/item/{}\">{}</a>".format(slugify(matchobj.group(1)),matchobj.group(1))
     s = re.sub(r'{@item (.*?)(\|.*?)?}', createILink, s)
+    def createSLink(matchobj):
+        return "<a href=\"/spell/{}\">{}</a>".format(slugify(matchobj.group(1)),matchobj.group(1))
+    s = re.sub(r'{@spell (.*?)(\|.*?)?}', createSLink, s)
     def createPLink(matchobj):
-        return "<a href=\"/page/{}\">{}</a>".format(slugify(matchobj.group(1)),matchobj.group(1).title())
+        return "<a href=\"/page/{}\">{}</a>".format(slugify(matchobj.group(1)),matchobj.group(1))
     s = re.sub(r'{@class (.*?)}', createPLink, s)
     s = re.sub(r'{@condition (.*?)}', createPLink, s)
+    def getAreaLink(m):
+        path = idSearch(m.group(2))
+        if not path:
+            return "{{@{} {}|{}|{}}}".format("adventure" if args.adventure else "book",m.group(1),book["id"],9999)
+        if path == "/page/{}#{}".format(d['currentslug'],m.group(2)):
+            path = "#{}".format(m.group(2))
+        return "<a href=\"{}\">{}</a>".format(path,m.group(1))
+    s = re.sub(r'{@area (.*?)\|(.*?)(\|.*?)?}',getAreaLink,s)
     def createALink(matchobj):
         chno = int(matchobj.group(5)) if matchobj.group(5) else 0
         sectitle = None
@@ -112,6 +143,7 @@ def fixTags(s,d=None,p=None):
             for otherbook in ab[matchobj.group(1)]:
                 if otherbook["id"].lower() != matchobj.group(3).lower():
                     continue
+                otherbookid = otherbook["id"]
                 sec = otherbook["contents"][chno]
                 if 'ordinal' in sec:
                     sectitle = "{} {}: {}".format(sec['ordinal']['type'].title(),sec['ordinal']['identifier'],sec['name'])
@@ -119,7 +151,7 @@ def fixTags(s,d=None,p=None):
                     sectitle = "{}".format(sec['name'])
             if not sectitle:
                 return matchobj.group(2)
-            return "<a href=\"/module/{}/page/{}\">{}</a>".format(uuid.uuid5(nsuuid,matchobj.group(2)),slugify(sectitle),matchobj.group(2))
+            return "<a href=\"/module/{}/page/{}\">{}</a>".format(uuid.uuid5(nsuuid,otherbookid),slugify(sectitle),matchobj.group(2))
         else:
             if chno > len(bookref["contents"]):
                 chno = 0
@@ -127,12 +159,17 @@ def fixTags(s,d=None,p=None):
                         if 'ordinal' in bookref["contents"][i] and matchobj.group(2) == "{} {}".format(bookref["contents"][i]['ordinal']['type'],bookref["contents"][i]['ordinal']['identifier']):
                             chno = i
             sec = bookref["contents"][chno]
-            if 'ordinal' in sec:
+            if matchobj.group(7) and 'headers' in sec:
+                for header in sec['headers']:
+                    if type(header) == dict and header['header'] == matchobj.group(7):
+                        sectitle = header['header']
+                    elif str(header) == matchobj.group(7):
+                        sectitle = header
+            elif 'ordinal' in sec:
                 sectitle = "{} {}: {}".format(sec['ordinal']['type'].title(),sec['ordinal']['identifier'],sec['name'])
             else:
                 sectitle = "{}".format(sec['name'])
             if not sectitle:
-                print(matchobj.group(0),matchobj.groups())
                 return matchobj.group(2)
             return "<a href=\"/page/{}\">{}</a>".format(slugify(sectitle),matchobj.group(2))
         #if matchobj.group(3):
@@ -148,9 +185,6 @@ def fixTags(s,d=None,p=None):
         #    print("using",matchobj.group(1))
         #    return "<a href=\"/page/{}\">{}</a>".format(slugify(matchobj.group(1)),matchobj.group(1))
     s = re.sub(r'{@(adventure|book) (.*?)\|(.*?)(\|(.*?))?(\|(.*?))?}', createALink, s)
-    def getAreaLink(m):
-        return "<a href=\"/page/{}\">{}</a>".format(str(uuid.uuid5(bookuuid,m.group(2))),m.group(1))
-    s = re.sub(r'{@area (.*?)\|(.*?)(\|.*?)?}',getAreaLink,s)
 #    def createBLink(matchobj):
 #        return "<a href=\"/module/page/{}\">{}</a>".format(slugify(matchobj.group(1)),matchobj.group(1).title())
 #    s = re.sub(r'{@book (.*?)\|(.*?)|.*?\|(.*?)}', createBLink, s)
@@ -161,8 +195,89 @@ def fixTags(s,d=None,p=None):
         s = fixTags(s,d,p)
     return s
 
+
+def idSearch(idno):
+    def searchSection(sec,pageslug = None):
+        if type(sec) == dict:
+            if 'name' in sec:
+                newslug = False
+                for i in range(len(bookref["contents"])):
+                    if 'ordinal' in bookref["contents"][i]:
+                        sectitle = "{} {}: {}".format(bookref["contents"][i]['ordinal']['type'].title(),bookref["contents"][i]['ordinal']['identifier'],bookref["contents"][i]['name'])
+                    else:
+                        sectitle = "{}".format(bookref["contents"][i]['name'])
+                    if re.match('(([Cc]h|[Aa]p).*: )?{}'.format(sec["name"]),sectitle):
+                        pageslug = slugify(sectitle)
+                        newslug = True
+                    if 'headers' in bookref["contents"][i]:
+                        for header in bookref["contents"][i]['headers']:
+                            if type(header) == dict and header['header'] == sec["name"]:
+                                pageslug = slugify(header['header'])
+                                newslug = True
+                                break;
+                            elif str(header) == sec["name"]:
+                                pageslug = slugify(header)
+                                newslug = True
+                                break;
+                    if newslug:
+                        break
+            if 'id' in sec and sec["id"] == idno:
+                return("/page/{}#{}".format(pageslug,idno))
+            elif 'entries' in sec:
+                return searchSection(sec["entries"],pageslug)
+        elif type(sec) == list:
+            for item in sec:
+                path = searchSection(item,pageslug)
+                if path:
+                    return path
+        else:
+            return
+    return searchSection(data['data'])
+
+
+def pageSearch(page):
+    def searchSection(sec,pageslug = None):
+        if type(sec) == dict:
+            if 'name' in sec:
+                newslug = False
+                for i in range(len(bookref["contents"])):
+                    if 'ordinal' in bookref["contents"][i]:
+                        sectitle = "{} {}: {}".format(bookref["contents"][i]['ordinal']['type'].title(),bookref["contents"][i]['ordinal']['identifier'],bookref["contents"][i]['name'])
+                    else:
+                        sectitle = "{}".format(bookref["contents"][i]['name'])
+                    if re.match('(([Cc]h|[Aa]p).*: )?{}'.format(sec["name"]),sectitle):
+                        pageslug = slugify(sectitle)
+                        newslug = True
+                    if 'headers' in bookref["contents"][i]:
+                        for header in bookref["contents"][i]['headers']:
+                            if type(header) == dict and header['header'] == sec["name"]:
+                                pageslug = slugify(header['header'])
+                                newslug = True
+                                break;
+                            elif str(header) == sec["name"]:
+                                pageslug = slugify(header)
+                                newslug = True
+                                break;
+                    if newslug:
+                        break
+            if 'name' in sec and sec["name"] == page:
+                if 'id' in sec:
+                    return("/page/{}#{}".format(pageslug,sec['id']))
+                else:
+                    return("/page/{}".format(pageslug))
+            elif 'entries' in sec:
+                return searchSection(sec["entries"],pageslug)
+        elif type(sec) == list:
+            for item in sec:
+                path = searchSection(item,pageslug)
+                if path:
+                    return path
+        else:
+            return
+    return searchSection(data['data'])
+
 def processSection(order,d,mod,parentuuid=None,parentname=None):
-    global suborder
+    #global suborder
     suborder = 0
     if 'id' not in d:
         if 'name' not in d:
@@ -176,7 +291,7 @@ def processSection(order,d,mod,parentuuid=None,parentname=None):
         page = ET.SubElement(module, 'page', { 'id': sectionuuid, 'sort': str(order) })
     titlem = re.match(r'(Ch(\.|apter)|App(\.|endix)) [0-9A-B]+?:[ ]?(.*)', fixTags(d['name']))
     title = d['name']
-    if not titlem and d['type'] == "section":
+    if not titlem and d['type'] == "section" and not parentuuid:
         for sec in bookref["contents"]:
             if sec['name'] == d['name'] and 'ordinal' in sec:
                 title = "{} {}: {}".format(sec['ordinal']['type'].title(),sec['ordinal']['identifier'],sec['name'])
@@ -184,10 +299,11 @@ def processSection(order,d,mod,parentuuid=None,parentname=None):
     name.text = fixTags(title)
     d['pagetitle'] = title
     content = ET.SubElement(page,'content')
+    d['content'] = content
     if parentuuid:
-        content.text = "<h2>{}</h2>\n".format(fixTags(d['name']))
+        content.text = "<h2 id=\"{}\">{}</h2>\n".format(d['id'],fixTags(d['name']))
     else:
-        content.text = "<h1>{}</h1>\n".format(fixTags(d['name']))
+        content.text = "<h1 id=\"{}\">{}</h1>\n".format(d['id'],fixTags(d['name']))
     slug = ET.SubElement(page,'slug')
     sectionslug = slugify(title)
     if sectionslug in slugs:
@@ -195,662 +311,66 @@ def processSection(order,d,mod,parentuuid=None,parentname=None):
     slug.text = slugify(sectionslug)
     d['currentslug'] = sectionslug
     slugs.append(sectionslug)
-#    if d['name'] == "Classes" and args.book.lower() == 'phb':
-#        add_fluff = ['barbarian','bard','cleric','druid','fighter','monk','paladin','ranger','rogue','sorcerer','warlock','wizard']
-#        for fl in add_fluff:
-#            with open("./data/class/class-{}.json".format(fl),encoding='utf-8') as f:
-#                fluff = json.load(f)
-#                f.close()
-#            for cl in fluff['class']:
-#                if cl['name'].lower() == fl:
-#                    for f in cl['fluff']:
-#                        if 'source' in f and f['source'] != 'PHB':
-#                            continue
-#                        classentries = []
-#                        for e in f['entries']:
-#                            if type(e) == dict and 'source' in e and e['source'] != 'PHB':
-#                                continue
-#                            classentries.append(copy.deepcopy(e))
-#                        classfeatures = {
-#                            "type": "entries",
-#                            "name": "Class Features",
-#                            "entries": [
-#                                "As a {}, you gain the following class features.".format(cl['name']),
-#                            ]
-#                        }
-#                        classfeatures['entries'].append({
-#                            "type": "entries",
-#                            "name": "Hit Points",
-#                            "entries": [
-#                                { "type": "entries", "name": "Hit Dice:", "entries": [
-#                                    "{}d{} per {} level".format(cl['hd']['number'],cl['hd']['faces'],cl['name'].lower())
-#                                ] },
-#                                { "type": "entries", "name": "Hit Points at 1st Level:", "entries": [
-#                                    "{} + your Constitution modifier".format(cl['hd']['faces'])
-#                                ] },
-#                                { "type": "entries", "name": "Hit Points at Higher Levels:", "entries": [
-#                                    "{}d{} (or {:.0}) + your Constitution modifier per {} level after 1st".format(cl['hd']['number'],cl['hd']['faces'],(cl['hd']['faces']/2)+1,cl['name'].lower())
-#                                ] }
-#                            ]
-#                        })
-#                        classfeatures['entries'].append({
-#                            "type": "entries",
-#                            "name": "Proficiencies",
-#                            "entries": [
-#                                { "type": "entries", "name": "Armor:", "entries": [
-#                                    re.sub(r'(light|medium|heavy),',r'\1 armor,',", ".join([x if type(x) != dict else x['full'] for x in cl["startingProficiencies"]["armor"]])).capitalize() if 'armor' in cl['startingProficiencies'] else "None"
-#                                ] },
-#                                { "type": "entries", "name": "Weapons:", "entries": [
-#                                    re.sub(r'(simple|martial),',r'\1 weapons,',", ".join(cl['startingProficiencies']['weapons'])).capitalize() if 'weapons' in cl['startingProficiencies'] else "None"
-#                                ] },
-#                                { "type": "entries", "name": "Tools:", "entries": [
-#                                    ", ".join(cl['startingProficiencies']['tools']) if 'tools' in cl['startingProficiencies'] else "None"
-#                                ] },
-#                                { "type": "entries", "name": "Saving Thows:", "entries": [
-#                                    ", ".join([stats[x] for x in cl["proficiency"]])
-#                                ] },
-#                                { "type": "entries", "name": "Skills:", "entries": [
-#                                    "Choose any {}".format(numbers[cl["skills"]["choose"]["count"]]) if "skills" in cl and "choose" in cl["skills"] and len(cl["skills"]["choose"]["from"]) == 18 else "Choose {} from {}".format(numbers[cl["skills"]["choose"]["count"]],"{}, and {}".format(", ".join(cl["skills"]["choose"]["from"][:-1]),cl["skills"]["choose"]["from"][-1])) if "skills" in cl else "None"
-#                                ] }
-#                            ]
-#                        })
-#                        if 'subclasses' in cl:
-#                            subclasses = []
-#                            for sc in cl["subclasses"]:
-#                                if 'source' in sc and sc['source'] != "PHB":
-#                                    continue
-#                                for scf in sc["subclassFeatures"]:
-#                                    scfs = []
-#                                    featureRefs = scf.split('|')
-#                                    for cf in fluff['subclassFeature']:
-#                                        if cf["name"] == featureRefs[0] and \
-#                                                cf["className"] == featureRefs[1] and \
-#                                                cf["subclassShortName"] == featureRefs[3] and \
-#                                                (cf["subclassSource"] == featureRefs[4] or (featureRefs[4] == "" and cf["subclassSource"])) and \
-#                                                int(featureRefs[5]) == cf["level"] and \
-#                                                (cf["classSource"] == featureRefs[2] or (featureRefs[2] == "" and cf["classSource"] == 'PHB')) and \
-#                                                (len(featureRefs) == 6 or cf["source"] == featureRefs[6]):
-#                                            scfs.append(cf)
-#                                    subclasses.append({
-#                                        "name": sc["name"],
-#                                        "type": "entries",
-#                                        "entries": copy.deepcopy(scfs)
-#                                    })
-#                            classfeatures['entries'].append({
-#                                "type": "entries",
-#                                "name": cl["subclassTitle"] if "subclassTitle" in cl else "Subclasses",
-#                                "entries": subclasses
-#                            })
-#
-#                        classentries.append(classfeatures)
-#                        for e in cl['classFeatures']:
-#                            if type(e) == dict and 'source' in e and e['source'] != 'PHB':
-#                                continue
-#                            if type(e) == list:
-#                                for i in e:
-#                                    if 'source' not in i or i['source'] == 'PHB':
-#                                        entry = copy.deepcopy(i)
-#                                        if 'type' not in entry:
-#                                            entry['type'] = "entries"
-#                                        classentries.append(entry)
-#                                continue
-#                            entry = copy.deepcopy(e)
-#                            if type(e) == dict and 'type' not in entry:
-#                                entry['type'] = "entries"
-#                            classentries += entry
-#                        d['entries'].append({
-#                                "type": "section",
-#                                "name": cl['name'],
-#                                "entries": classentries
-#                            })
-#    if d['name'] == "Races" and args.book.lower() == 'phb':
-#        with open("./data/fluff-races.json",encoding='utf-8') as f:
-#            fluff = json.load(f)
-#            f.close()
-#        for race in fluff['raceFluff']:
-#            if 'source' in race and race['source'] != 'PHB':
-#                continue
-#            elif re.match(r'.*? \(.*?\)',race['name']):
-#                continue
-#            entries = copy.deepcopy(race['entries'])
-#            if 'images' in race:
-#                entries = race['images'] + entries
-#            with open("./data/races.json",encoding='utf-8') as f:
-#                rd = json.load(f)
-#                f.close()
-#            for r in rd['race']:
-#                if 'source' in race and race['source'] != 'PHB':
-#                    continue
-#                if r['name'] != race['name']:
-#                    continue
-#
-#                rdata = r
-#                traits = []
-#                if race['name'] == "Dwarf":
-#                    traits.append("Your dwarf character has an assortment of inborn abilities, part and parcel of dwarven nature.")
-#                if race['name'] == "Elf":
-#                    traits.append("Your elf character has a variety of natural abilities, the result of thousands of years of elven refinement.")
-#                if race['name'] == "Halfling":
-#                    traits.append("Your halfling character has a number of traits in common with all other halflings.")
-#                if race['name'] == "Human":
-#                    traits.append("It's hard to make generalizations about humans, but your human character has these traits.")
-#                if race['name'] == "Dragonborn":
-#                    traits.append("Your draconic heritage manifests in a variety of traits you share with other dragonborn.")
-#                if race['name'] == "Gnome":
-#                    traits.append("Your gnome character has certain characteristics in common with all other gnomes.")
-#                if race['name'] == "Half-Elf":
-#                    traits.append("Your half-elf character has some qualities in common with elves and some that are unique to half-elves.")
-#                if race['name'] == "Half-Orc":
-#                    traits.append("Your half-orc character has certain traits deriving from your orc ancestry.")
-#                if race['name'] == "Tiefling":
-#                    traits.append("Tieflings share certain racial traits as a result of their infernal descent.")
-#
-#                subtraits = []
-#                if 'ability' in r:
-#                    scoreincrease = []
-#                    if race['name'] == 'Human':
-#                        scoreincrease.append = ("Your ability scores each increase by 1.")
-#                    else:
-#                        for ability in r['ability']:
-#                            for stat,val in ability.items():
-#                                if stat in stats.keys():
-#                                    scoreincrease.append("your {} score increases by {}".format(stats[stat],val))
-#                                elif stat == "choose":
-#                                    scoreincrease.append("{} other ability scores of your choice increase by {}".format(numbers[val['count']],val['amount'] if 'amount' in val else 1))
-#                    subtraits.append({ "type": "entries", "name": "Ability Score Increase", "entries": ["{}, and {}.".format(", ".join(scoreincrease[:-1]),scoreincrease[-1]).capitalize() if len(scoreincrease) > 1 else scoreincrease[0].capitalize()] })
-#
-#                if 'entries' in r:
-#                    hasspeed = False
-#                    sizepos = 0
-#                    i = 0
-#                    for e in r['entries']:
-#                        i += 1
-#                        if 'name' in e and e['name'] == "Size":
-#                            sizepos = i
-#                        if 'speed' in r and 'name' in e and e['name'] == "Speed":
-#                            hasspeed = True
-#                            if type(e['entries'][0]) == str:
-#                                e['entries'][0] = "Your base walking speed is {} feet. {}".format(r['speed'],e['entries'][0])
-#                            else:
-#                                e['entries'].insert(0,"Your base walking speed is {} feet.".format(r['speed']))
-#                    if not hasspeed:
-#                        r['entries'].insert(sizepos,{ "type": "entries", "name": "Speed", "entries": ["Your base walking speed is {} feet.".format(r['speed'])] } )
-#                    subtraits += r['entries']
-#
-#                traits.append({ "type": "entries", "entries": subtraits })
-#                for r in fluff['raceFluff']:
-#                    if 'source' in r and r['source'] != 'PHB':
-#                        continue
-#                    subracere = re.match(r'{} \((.*?)\)'.format(race['name']),r['name'])
-#                    if subracere:
-#                        subracename = subracere.group(1)
-#                        if 'entries' not in r:
-#                            r['entries'] = utils.appendFluff(fluff,r['name'],'raceFluff')
-#                        subrace = copy.deepcopy(r['entries'])
-#                        if 'images' in r and r['images']:
-#                            subrace = r['images'] + entries
-#                        for rs in rdata['subraces']:
-#                            if 'source' in race and race['source'] != 'PHB':
-#                                continue
-#                            if rs['name'] != subracename:
-#                                continue
-#                            else:
-#                                subracetraits = []
-#                                if 'ability' in r:
-#                                    scoreincrease = []
-#                                    for ability in r['ability']:
-#                                        for stat,val in ability.items():
-#                                            if stat in stats.keys():
-#                                                scoreincrease.append("your {} score increases by {}".format(stats[stat],val))
-#                                            elif stat == "choose":
-#                                                scoreincrease.append("{} other ability scores of your choice increase by {}".format(numbers[val['count']],val['amount'] if 'amount' in val else 1))
-#                                subracetraits.append({ "type": "entries", "name": "Ability Score Increase", "entries": ["{}, and {}.".format(", ".join(scoreincrease[:-1]),scoreincrease[-1]).capitalize() if len(scoreincrease) > 1 else scoreincrease[0].capitalize()] })
-#                                if 'entries' in rs:
-#                                        subrace.append({
-#                                            "type": "entries",
-#                                            "entries": subracetraits + rs['entries']
-#                                        })
-#                        if subracename == "Drow":
-#                            subracename = "Dark Elf (Drow)"
-#                        else:
-#                            subracename = "{} {}".format(subracename,race['name'])
-#                        traits.append({
-#                                "type": "entries",
-#                                "name": subracename,
-#                                "entries": subrace
-#                            })
-#                entries.append({
-#                            "type": "entries",
-#                            "name": "{} Traits".format(race['name']),
-#                            "entries": traits
-#                    })
-#                if race['name'] == "Human":
-#                    entries.append({
-#                        "type": "inset",
-#                        "name": "Variant Human Traits",
-#                        "entries": [
-#                            "If your campaign uses the optional feat rules fram chapter 5, your Dungeon Master might allow these variant traits, all of which replace the human's Ability Score Increase trait.",
-#                            { "type": "entries", "name": "Ability Score Increase", "entries": [ "Two different ability scores of your choice increase by 1." ] },
-#                            { "type": "entries", "name": "Skills", "entries": [ "You gain proficiency in one skill of your choice." ] },
-#                            { "type": "entries", "name": "Feat", "entries": [ "You gain one feat of your choice." ] }
-#                        ] } )           
-#                break
-#
-#            d['entries'].append({
-#                    "type": "section",
-#                    "name": race['name'],
-#                    "entries": entries
-#                })
-#    if d['name'] == "Backgrounds" and args.book.lower() == 'phb':
-#        with open("./data/fluff-backgrounds.json",encoding='utf-8') as f:
-#            fluff = json.load(f)
-#            f.close()
-#        with open("./data/backgrounds.json",encoding='utf-8') as f:
-#            bgs = json.load(f)
-#            f.close()
-#        for bg in fluff['backgroundFluff']:
-#            if 'source' in bg and bg['source'] != 'PHB':
-#                continue
-#            elif re.match(r'Variant .*? \(.*?\)',bg['name']):
-#                continue
-#            entries = copy.deepcopy(bg['entries'])
-#            for bgd in bgs['background']:
-#                if bgd['name'] != bg['name']:
-#                    continue
-#                elif 'entries' in bgd:
-#                    entries += bgd['entries']
-#            for bgv in fluff['backgroundFluff']:
-#                if re.match(r'Variant {} \(.*?\)'.format(bg['name']),bgv['name']):
-#                    variant = copy.deepcopy(bgv['entries'])
-#                    for bgvd in bgs['background']:
-#                        if bgvd['name'] != bgv['name']:
-#                            continue
-#                        elif 'entries' in bgvd:
-#                            variant += bgvd['entries']
-#                    entries.append({
-#                            "type": "entries",
-#                            "name": bgv['name'],
-#                            "entries": variant
-#                        })
-#            d['entries'].append({
-#                    "type": "section",
-#                    "name": bg['name'],
-#                    "entries": entries
-#                })
-#
-#    if d['name'] == "Conditions" and args.book.lower() == 'phb':
-#        with open("./data/conditionsdiseases.json",encoding='utf-8') as f:
-#            conditions = json.load(f)
-#            f.close()
-#        for cond in conditions['condition']:
-#            if cond['source'] != 'PHB':
-#                continue
-#            entries = copy.deepcopy(cond['entries'])
-#            if os.path.isfile("./img/conditionsdiseases/PHB/{}.png".format(cond['name'].lower())):
-#                entries.append({
-#                        "type": "image",
-#                        "href": {
-#                            "type": "internal",
-#                            "path": "conditionsdiseases/PHB/{}.png".format(cond['name'].lower())
-#                            }
-#                        })
-#            d['entries'].append({
-#                "type": "section",
-#                "name": cond['name'],
-#                "entries": entries
-#                })
-#
-#    if d['name'] == "Feats" and args.book.lower() == 'phb':
-#        with open("./data/feats.json",encoding='utf-8') as f:
-#            feats = json.load(f)
-#            f.close()
-#        for feat in feats['feat']:
-#            if feat['source'] != 'PHB':
-#                continue
-#            entries = copy.deepcopy(feat['entries'])
-#            prereq = []
-#            if 'prerequisite' in feat:
-#                for pre in feat['prerequisite']:
-#                    if 'ability' in pre:
-#                        if type(pre['ability']) == list:
-#                            abilityor = []
-#                            if all(next(iter(v.values())) == next(iter(pre['ability'][0].values())) for v in pre['ability']):
-#                                for v in pre['ability']:
-#                                    for s,val in v.items():
-#                                        abilityor.append(stats[s])
-#                                prereq.append("{} {} or higher".format(" or ".join(abilityor),next(iter(pre['ability'][0].values()))))
-#                            else:
-#                                for v in pre['ability']:
-#                                    for s,val in v.items():
-#                                        abilityor.append("{} {} or higher".format(stats[k],val))
-#                                prereq.append(" or ".join(abilityor))
-#                        else:
-#                            for k,v in pre['ability'].items():
-#                                prereq.append("{} {} or higher".format(stats[k],v))
-#                    if 'spellcasting' in pre and pre['spellcasting']:
-#                        prereq.append("The ability to cast at least one spell")
-#                    if 'proficiency' in pre:
-#                        for prof in pre['proficiency']:
-#                            for k,v in prof.items():
-#                                prereq.append("Proficiency with {} {}".format(k,v))
-#                entries.insert(0,"<i>Prerequisite: {}</i>".format(", ".join(prereq)))
-#            d['entries'].append({
-#                "type": "section",
-#                "name": feat['name'],
-#                "entries": entries
-#                })
-
-    subsection = None
-    subsectionname = None
     for e in d['entries']:
         issubsection = False
         if type(e) == dict:
             if 'type' not in e:
                 e['type'] = 'entries'
-            if e['type'] == 'entries' and 'name' in e:
-                if re.match(r'^[A-Z]?[0-9]+[A-Z]?([\-\–\—][A-Z]?[0-9]+[A-Z]?)?\.',fixTags(e['name'])):
-                    suborder += 1
-                    issubsection = True
-                    if subsection:
-                        subpage = processSection(suborder,e,mod,subsection,subsectionname)
-                        parentcontent = mod.find("./page[@id='{}']/content".format(subsection))
-                        parentcontent.text = parentcontent.text[:parentcontent.text.rindex("<br>\nUp: ")] + "\n<a href=\"/page/{}\">{}</a>\n<br>\n".format(subpage,fixTags(e['name'])) + parentcontent.text[parentcontent.text.rindex("<br>\nUp: "):]
+            if e['type'] in ['entries','section'] and 'name' in e:
+                chaptermatch = re.match(r'((Ch(\.|apter)|App(\.|endix)) ([0-9A-B]+?):[ ]?)(.*)',parentname if parentname else title)
+                for sec in bookref["contents"]:
+                    if chaptermatch and 'ordinal' in sec and sec['ordinal']['type'].lower() == chaptermatch.group(2).lower() and str(sec['ordinal']['identifier']).lower() == chaptermatch.group(5).lower():
+                        chaptermatches = True
                     else:
-                        subpage = processSection(suborder,e,mod,sectionuuid,d['name'])
-                        content.text += "\n<a href=\"/page/{}\">{}</a>\n<br>\n".format(subpage,fixTags(e['name']))
-                else:
-                    suborder += 1
-                    for sec in bookref["contents"]:
-                        sectionregex = re.compile(r'((Ch(\.|apter)|App(\.|endix)) [0-9A-B]+?:[ ]?)?{}'.format(re.escape(sec['name'])))
-                        if sectionregex.match(parentname if parentname else title) and 'headers' in sec:
+                        chaptermatches = False
+                    sectionregex = re.compile(r'((Ch(\.|apter)|App(\.|endix)) ([0-9A-B]+?):[ ]?)?{}'.format(re.escape(sec['name'])))
+                    titlematch = sectionregex.match(parentname if parentname else title)
+                    if titlematch or chaptermatches:
+                        if 'headers' in sec:
                             for header in sec['headers']:
                                 if (type(header) == dict and header["header"] == fixTags(e['name'])) or header == e['name']:
                                     issubsection = True
-                                    subsection = str(uuid.uuid5(bookuuid,e["id"]))
-                                    subsectionname = fixTags(e['name'])
-                    if subsection and not issubsection:
-                        subpage = processSection(suborder,e,mod,subsection,subsectionname)
-                        parentcontent = mod.find("./page[@id='{}']/content".format(subsection))
-                        parentcontent.text = parentcontent.text[:parentcontent.text.rindex("<br>\nUp: ")] + "\n<a href=\"/page/{}\">{}</a>\n<br>\n".format(subpage,fixTags(e['name'])) + parentcontent.text[parentcontent.text.rindex("<br>\nUp: "):]
-                    else:
-                        subpage = processSection(suborder,e,mod,sectionuuid,d['name'])
-                        content.text += "\n<a href=\"/page/{}\">{}</a>\n<br>\n".format(subpage,fixTags(e['name']))
-                #                suborder += 1
-                #                isSubsection = True
-                #                subpage = processSection(suborder,e,mod,sectionuuid,title)
-                #                subsection = str(uuid.uuid5(bookuuid,e["id"]))
-                #                content.text += "\n<a href=\"/page/{}\">{}</a>\n<br>\n".format(subpage,fixTags(e['name']))
-                continue
-            if e['type'] == 'insetReadaloud':
-                content.text += "<blockquote class=\"read\">\n"
-                if 'name' in e:
-                    content.text += "<h3>{}</h3>\n".format(e['name'])
-                for x in e['entries']:
-                    content.text += "<p>{}</p>\n".format(getEntry(x,d))
-                content.text += "</blockquote>\n"
-            elif e['type'] == 'inset':
-                content.text += "<blockquote>\n"
-                if 'name' in e:
-                    content.text += "<h3>{}</h3>\n".format(e['name'])
-                for x in e['entries']:
-                    content.text += getEntry(x,d)
-                content.text += "</blockquote>\n"
-            elif e['type'] == 'abilityGeneric':
-                content.text += "<p class=\"text-center\">{}</p>\n".format(fixTags(e['text'],d,e))
-            elif e['type'] == 'abilityDc':
-                content.text += "<p class=\"text-center\"><b>{} save DC</b> = 8 + your proficiency bonus + your {} modifier</p>\n".format(e['name']," modifier + your ".join([stats[x] for x in e["attributes"]]))
-            elif e['type'] == 'entries':
-                if 'name' in e:
-                    if parentuuid:
-                        content.text += "<h2>{}</h2>\n".format(e['name'])
-                    else:
-                        content.text += "<h3>{}</h3>\n".format(e['name'])
-                for se in e['entries']:
-                    if type(se) == dict:
-                        if 'type' not in se:
-                            se['type'] = "entries"
-                        if se['type'] == "list":
-                            content.text += "<ul>\n"
-                            for i in se['items']:
-                                content.text += "<li>{}</li>".format(getEntry(i,d))
-                            content.text += "</ul>\n"
-                        elif se['type'] == "entries":
-                            if 'name' in se:
-                                isSubsection = False
-                                if re.match(r'^[A-Z]?[0-9]+[A-Z]?([\-\–\—][A-Z]?[0-9]+[A-Z]?)?\.',fixTags(se['name'])) and not isSubsection:
-                                    suborder += 1
-                                    isSubsection = True
-                                    subpage = processSection(suborder,se,mod,sectionuuid,d['name'])
-                                    content.text += "\n<a href=\"/page/{}\">{}</a>\n<br>\n".format(subpage,fixTags(se['name']))
-                                if isSubsection:
-                                    continue
-                                if parentuuid:
-                                    content.text += "<h4>{}</h4>\n".format(se['name'])
-                                else:
-                                    content.text += "<h3>{}</h3>\n".format(se['name'])
-                            for see in se['entries']:
-                                if type(see) == dict:
-                                    content.text += getEntry(see,d)
-                                else:
-                                    content.text += "<p>{}</p>".format(fixTags(see,d,se))
-                        elif se['type'] == 'inset':
-                            content.text += "<blockquote>\n"
-                            if 'name' in se:
-                                content.text += "<h4>{}</h4>\n".format(se['name'])
-                            for x in se['entries']:
-                                content.text += getEntry(x,d)
-                            content.text += "</blockquote>\n"
-                        elif se['type'] == 'abilityGeneric':
-                            content.text += "<p class=\"text-center\">{}</p>\n".format(fixTags(se['text'],d,se))
-                        elif se['type'] == 'abilityDc':
-                            content.text += "<p class=\"text-center\"><b>{} save DC</b> = 8 + your proficiency bonus + your {} modifier</p>\n".format(se['name']," modifier + your ".join([stats[x] for x in se["attributes"]]))
-                        elif se['type'] == 'table':
-                            content.text += getTable(se,d)
-                        elif se['type'] == 'tableGroup':
-                            content.text += "\n".join([getTable(x,d) for x in se['tables']])
-                        elif se['type'] == 'image':
-                            content.text += "<p>\n"
-                            content.text += "<img src=\"{}\"><br>\n".format(os.path.basename(se['href']['path']))
-                            if 'title' in se:
-                                if 'map' in se['title'].lower():
-                                    maptitle = se['title']
-                                    mapbaseslug = d['currentslug'] + "-map"
-                                    mapslug = mapbaseslug + str(len([i for i in slugs if mapbaseslug in i]))
-                                    mapuuid = str(uuid.uuid5(bookuuid,mapslug))
-                                    slugs.append(mapslug)
-                                    mapentry = ET.SubElement(module,'map',{'id': mapuuid,'parent': sectionuuid,'sort': str(len([i for i in slugs if mapbaseslug in i]) + 199)})
-                                    ET.SubElement(mapentry,'name').text = maptitle
-                                    ET.SubElement(mapentry,'slug').text = mapslug
-                                    ET.SubElement(mapentry,'image').text = os.path.basename(se['href']['path'])
-                                    content.text += '<a href="/map/{}"><i>{}</i></a><br>\n'.format(mapslug,se['title'])
-                                else:
-                                    content.text += "<i>{}</i><br>\n".format(se['title'])
-                            #shutil.copy("./img/" + se['href']['path'],os.path.join(tempdir,os.path.basename(se['href']['path'])))
-                            with Image(filename="./img/" + se['href']['path']) as img:
-                                if img.width > 4096 or img.height > 4096:
-                                    img.transform(resize='4096x4096>')
-                                img.save(filename=os.path.join(tempdir,os.path.basename(se['href']['path'])))
-                            content.text += "</p>\n"
-                        elif se['type'] == 'options':
-                            for x in se['entries']:
-                                content.text += getEntry(x,d)
-                        elif se['type'] == 'inlineBlock':
-                            content.text += "<blockquote>\n"
-                            content.text += "<p>\n"
-                            content.text += " ".join([re.sub(r'</?p>','',getEntry(x,d)) for x in se['entries']])
-                            content.text += "</p>\n"
-                            content.text += "</blockquote>\n"
-                        elif se['type'] == 'inline':
-                            content.text += "<p>\n"
-                            content.text += " ".join([re.sub(r'</?p>','',getEntry(x,d)) for x in se['entries']])
-                            content.text += "</p>\n"
-                        elif se['type'] == 'quote':
-                            if 'by' in se:
-                                content.text += "<p><i>{}</i></p><span class=\"text-right\">&mdash;{}<i>{}</i></span>".format("<br>".join(se['entries']),se['by'],', '+se['from'] if 'from' in se else '')
-                            else:
-                                content.text += "<p><i>{}</i></p>".format("<br>".join(se['entries']))
-                        elif se['type'] == 'insetReadaloud':
-                            content.text += "<blockquote class=\"read\">\n"
-                            if 'name' in se:
-                                content.text += "<h4>{}</h4>\n".format(se['name'])
-                            for x in se['entries']:
-                                content.text += "<p>{}</p>\n".format(fixTags(getEntry(x,d),d,se))
-                            content.text += "</blockquote>\n"
-                        elif se['type'] == 'gallery':
-                            content.text += "<p>\n"
-                            i = 0
-                            maptitle = ""
-                            for image in se['images']:
-                                content.text += "<img src=\"{}\"><br>\n".format(os.path.basename(image['href']['path']))
-                                if 'title' in image:
-                                    if "player version" in image['title'].lower() or 'map' in image['title'].lower():
-                                        if image['title'] == "(Player Version)":
-                                            maptitle += " " + image['title']
-                                        else:
-                                            maptitle = image['title']
-                                        mapbaseslug = d['currentslug'] + "-map"
-                                        mapslug = mapbaseslug + str(len([i for i in slugs if mapbaseslug in i]))
-                                        mapuuid = str(uuid.uuid5(bookuuid,mapslug))
-                                        slugs.append(mapslug)
-                                        mapentry = ET.SubElement(module,'map',{'id': mapuuid,'parent': sectionuuid,'sort': str(len([i for i in slugs if mapbaseslug in i]) + 199)})
-                                        ET.SubElement(mapentry,'name').text = maptitle
-                                        ET.SubElement(mapentry,'slug').text = mapslug
-                                        ET.SubElement(mapentry,'image').text = os.path.basename(image['href']['path'])
-                                        content.text += '<a href="/map/{}"><i>{}</i></a><br>\n'.format(mapslug,image['title'])
-                                    else:
-                                        content.text += "<i>{}</i><br>\n".format(image['title'])
-                                #shutil.copy("./img/" + image['href']['path'],os.path.join(tempdir,os.path.basename(image['href']['path'])))
-                                with Image(filename="./img/" + image['href']['path']) as img:
-                                    if img.width > 4096 or img.height > 4096:
-                                        img.transform(resize='4096x4096>')
-                                    img.save(filename=os.path.join(tempdir,os.path.basename(image['href']['path'])))
-                                i += 1
-                            content.text += "</p>\n"
-                        else:
-                            content.text += getEntry(se,d)
-                            #print("TODO: se entries type:",se['type'])
-                    else:
-                        content.text += "<p>{}</p>".format(fixTags(se,d,e))
-            elif e['type'] == 'list':
-                content.text += "<ul>\n"
-                for i in e['items']:
-                    content.text += "<li>{}</li>".format(getEntry(i,d))
-                content.text += "</ul>\n"
-            elif e['type'] == 'table':
-                content.text += getTable(e,d)
-            elif e['type'] == 'tableGroup':
-                content.text += "\n".join([getTable(x,d) for x in e['tables']])
-            elif e['type'] == 'section':
-                suborder += 1
-                subpage = processSection(suborder,e,mod,sectionuuid,d['name'])
-                if d['name'] != "Classes" and d['name'] != "Conditions":
-                    content.text += "\n<a href=\"/page/{}\">{}</a>\n<br>\n".format(subpage,e['name'])
-            elif e['type'] == 'image':
-                content.text += "<p>\n"
-                content.text += "<img src=\"{}\"><br>\n".format(os.path.basename(e['href']['path']))
-                if 'title' in e:
-                    if 'map' in e['title'].lower():
-                        maptitle = e['title']
-                        mapbaseslug = d['currentslug'] + "-map"
-                        mapslug = mapbaseslug + str(len([i for i in slugs if mapbaseslug in i]))
-                        mapuuid = str(uuid.uuid5(bookuuid,mapslug))
-                        slugs.append(mapslug)
-                        mapentry = ET.SubElement(module,'map',{'id': mapuuid,'parent': sectionuuid,'sort': str(len([i for i in slugs if mapbaseslug in i]) + 199)})
-                        ET.SubElement(mapentry,'name').text = maptitle
-                        ET.SubElement(mapentry,'slug').text = mapslug
-                        ET.SubElement(mapentry,'image').text = os.path.basename(e['href']['path'])
-                        content.text += '<a href="/map/{}"><i>{}</i></a><br>\n'.format(mapslug,e['title'])
-                    else:
-                        content.text += "<i>{}</i><br>\n".format(e['title'])
-                #shutil.copy("./img/" + e['href']['path'],os.path.join(tempdir,os.path.basename(e['href']['path'])))
-                with Image(filename="./img/" + e['href']['path']) as img:
-                    if img.width > 4096 or img.height > 4096:
-                        img.transform(resize='4096x4096>')
-                    img.save(filename=os.path.join(tempdir,os.path.basename(e['href']['path'])))
-                content.text += "</p>\n"
-            elif e['type'] == 'gallery':
-                content.text += "<p>\n"
-                maptitle = ""
-                for image in e['images']:
-                    content.text += "<img src=\"{}\"><br>\n".format(os.path.basename(image['href']['path']))
-                    if 'title' in image:
-                        if "player version" in image['title'].lower() or 'map' in image['title'].lower():
-                            if image['title'] == "(Player Version)":
-                                maptitle += " " + image['title']
-                            else:
-                                maptitle = image['title']
-                            mapbaseslug = d['currentslug'] + "-map"
-                            mapslug = mapbaseslug + str(len([i for i in slugs if mapbaseslug in i]))
-                            mapuuid = str(uuid.uuid5(bookuuid,mapslug))
-                            slugs.append(mapslug)
-                            mapentry = ET.SubElement(module,'map',{'id': mapuuid,'parent': sectionuuid,'sort': str(len([i for i in slugs if mapbaseslug in i]) + 199)})
-                            ET.SubElement(mapentry,'name').text = maptitle
-                            ET.SubElement(mapentry,'slug').text = mapslug
-                            ET.SubElement(mapentry,'image').text = os.path.basename(image['href']['path'])
-                            content.text += '<a href="/map/{}"><i>{}</i></a><br>\n'.format(mapslug,image['title'])
-                        else:
-                            content.text += "<i>{}</i><br>\n".format(image['title'])
-                    #shutil.copy("./img/" + image['href']['path'],os.path.join(tempdir,os.path.basename(image['href']['path'])))
-                    with Image(filename="./img/" + image['href']['path']) as img:
-                        if img.width > 4096 or img.height > 4096:
-                            img.transform(resize='4096x4096>')
-                        img.save(filename=os.path.join(tempdir,os.path.basename(image['href']['path'])))
-                content.text += "</p>\n"
-            elif e['type'] == 'inlineBlock':
-                content.text += "<blockquote>\n"
-                content.text += "<p>\n"
-                content.text += " ".join([re.sub(r'</?p>','',getEntry(x,d)) for x in e['entries']])
-                content.text += "</p>\n"
-                content.text += "</blockquote>\n"
-            elif e['type'] == 'quote':
-                content.text += "<blockquote>\n"
-                for x in e['entries']:
-                    content.text += getEntry(x,d)
-                content.text += "</blockquote>\n"
-            elif e['type'] == 'inline':
-                content.text += "<p>\n"
-                content.text += " ".join([re.sub(r'</?p>','',getEntry(x,d)) for x in e['entries']])
-                content.text += "</p>\n"
-            elif e['type'] == 'insetReadaloud':
-                content.text += "<blockquote class=\"read\">\n"
-                if 'name' in e:
-                    content.text += "<h4>{}</h4>\n".format(e['name'])
-                for x in e['entries']:
-                    content.text += "<p>{}</p>\n".format(fixTags(x,d,e))
-                content.text += "</blockquote>\n"
-            else:
-                content.text += getEntry(e,d)
-                #print("TODO: e entry type:",e['type'])
-                #print(e)
+                if issubsection:
+                    suborder += 1
+                    subpage = processSection(suborder,e,mod,sectionuuid,title)
+                    d['content'].text += "\n<a href=\"/page/{}\">{}</a>\n<br>\n".format(subpage,fixTags(e['name']))
+                    d['subsection'] = str(uuid.uuid5(bookuuid,e["id"]))
+                    d['subsectionname'] = fixTags(e['name'])
+                    content = content = mod.find("./page[@id='{}']/content".format(d['subsection']))
+                if issubsection:
+                    continue
+        if content.text.rfind("<br>\nUp: ") > 0:
+            content.text = content.text[:content.text.rindex("<br>\nUp: ")] + getEntry(e,d) + content.text[content.text.rindex("<br>\nUp: "):]
         else:
-            content.text += "<p>{}</p>\n".format(fixTags(e,d,e))
+            content.text += getEntry(e,d)
+
     if parentname:
         content.text += "<br>\nUp: <a href=\"/page/{}\">{}</a>\n<br>\n".format(slugify(parentname),parentname)
     content.text = content.text.rstrip()
     
     return slugify(sectionslug)
 
-def getEntry(e,d=None):
+def getEntry(e,d=None,h=3,noencounter=False):
     if type(e) == dict:
         if 'source' in e and e['source'].lower() != args.book:
             return ""
         content = ""
         if 'name' in e:
-            content += "<h4>{}</h4>\n".format(e['name'])
+            if 'id' not in e:
+                e['id'] = str(uuid.uuid5(bookuuid,e['name']))
+            content += "<h{1} id=\"{2}\">{0}</h{1}>\n".format(e['name'],h,e['id'])
         if 'type' not in e and 'entries' in e:
             e['type'] = 'entries'
         if e['type'] == "list":
             content += "<ul>\n"
             for i in e['items']:
-                if type(i) == dict:
-                    if 'entries' in i:
-                        i['entry'] = "\n".join(i['entries'])
-                    content += "<li><b>{}</b> {}</li>".format(i['name'],fixTags(i['entry'],d,e))
-                else:
-                    content += "<li>{}</li>\n".format(fixTags(i,d,e))
+                content += "<li>{}</li>".format(getEntry(i,d,h,noencounter))
             content += "</ul>\n"
             return content
-        elif e['type'] == "entries" or e['type'] == "patron" or e['type'] == "options" or e['type'] == "optfeature":
+        elif e['type'] == "entries" or e['type'] == "section":
+            content += getEntry(e['entries'],d,4,noencounter)
+            return content
+        elif e['type'] == "patron" or e['type'] == "options" or e['type'] == "optfeature":
             if 'prerequisite' in e and type(e['entries'][0]) == str:
                 e['entries'][0] = "<i>Prerequisite: {}</i><br>{}".format(e['prerequisite'],e['entries'][0])
             elif 'prerequisite' in e:
@@ -859,19 +379,19 @@ def getEntry(e,d=None):
                 e['entries'][0] = "<b>{}</b><br>{}".format(e['name'],e['entries'][0])
             elif 'name' in e:
                 e['entries'].insert(0,"<b>{}</b><br>".format(e['name']))
-            return getEntry(e['entries'],d)
+            return getEntry(e['entries'],d,h,noenocunter)
         elif e['type'] == "table":
             return getTable(e,d)
         elif e['type'] == "inset":
             content += "<blockquote>\n"
             if 'name' in e:
-                content += "<h4>{}</h4>\n".format(e['name'])
+                content += "<h4 id=\"{}\">{}</h4>\n".format(e['id'],e['name'])
             for x in e['entries']:
-                content += getEntry(x,d)
+                content += getEntry(x,d,h,noencounter)
             content += "</blockquote>\n"
             return content
         elif e['type'] == "item":
-            return "<b>{}</b> {}".format(e['name'],fixTags(e['entry'] if 'entry' in e else getEntry(e['entries'],d),d,e))
+            return "<b>{}</b> {}".format(e['name'],fixTags(e['entry'] if 'entry' in e else getEntry(e['entries'],d,h,noencounter),d,e,noencounter))
         elif e['type'] == "tableGroup":
             for table in e['tables']:
                 content += getTable(table,d)
@@ -879,39 +399,46 @@ def getEntry(e,d=None):
         elif e['type'] == "link":
             return "<a href=\"{}\">{}</a>".format(e['href']['path'],e['text'])
         elif e['type'] == "abilityGeneric":
-            return "<p class=\"text-center\">{}</p>\n".format(fixTags(e['text'],d,e))
+            return "<p class=\"text-center\">{}</p>\n".format(fixTags(e['text'],d,e,noencounter))
         elif e['type'] == "abilityDc":
             return "<p class=\"text-center\"><b>{} save DC</b> = 8 + your proficiency bonus + your {} modifier</p>\n".format(e['name']," modifier + your ".join([stats[x] for x in e["attributes"]]))
         elif e['type'] == "abilityAttackMod":
             return "<p class=\"text-center\"><b>{} attack modifier</b> = your proficiency bonus + your {} modifier</p>\n".format(e['name']," modifier + your ".join([stats[x] for x in e["attributes"]]))
         elif e['type'] == 'image':
             content += "<p>\n"
-            #shutil.copy("./img/" + e['href']['path'],os.path.join(tempdir,os.path.basename(e['href']['path'])))
-            with Image(filename="./img/" + e['href']['path']) as img:
-                if img.width > 4096 or img.height > 4096:
-                    img.transform(resize='4096x4096>')
-                img.save(filename=os.path.join(tempdir,os.path.basename(e['href']['path'])))
+            shutil.copy("./img/" + e['href']['path'],os.path.join(tempdir,os.path.basename(e['href']['path'])))
+            #with Image(filename="./img/" + e['href']['path']) as img:
+            #    if img.width > 8192 or img.height > 8192:
+            #        img.transform(resize='8192x8192>')
+            #    img.save(filename=os.path.join(tempdir,os.path.basename(e['href']['path'])))
             content += "<img src=\"{}\"><br>\n".format(os.path.basename(e['href']['path']))
             if 'title' in e:
-                if 'map' in e['title'].lower():
-                    maptitle = e['title']
-                    mapbaseslug = d['currentslug'] + "-map"
-                    mapslug = mapbaseslug + str(len([i for i in slugs if mapbaseslug in i]))
-                    mapuuid = str(uuid.uuid5(bookuuid,mapslug))
-                    slugs.append(mapslug)
-                    mapentry = ET.SubElement(module,'map',{'id': mapuuid,'parent': d['currentpage'],'sort': str(len([i for i in slugs if mapbaseslug in i]) + 199)})
-                    ET.SubElement(mapentry,'name').text = maptitle
-                    ET.SubElement(mapentry,'slug').text = mapslug
-                    ET.SubElement(mapentry,'image').text = os.path.basename(e['href']['path'])
-                    content += '<a href="/map/{}"><i>{}</i></a><br>\n'.format(mapslug,e['title'])
-                else:
+#                if 'map' in e['title'].lower():
+#                    maptitle = e['title']
+#                    mapbaseslug = d['currentslug'] + "-map"
+#                    mapslug = mapbaseslug + str(len([i for i in slugs if mapbaseslug in i]))
+#                    mapuuid = str(uuid.uuid5(bookuuid,mapslug))
+#                    slugs.append(mapslug)
+#                    mapentry = ET.SubElement(module,'map',{'id': mapuuid,'parent': d['subsection'] if 'subsection' in d else d['currentpage'],'sort': str(len([i for i in slugs if mapbaseslug in i]) + 199)})
+#                    ET.SubElement(mapentry,'name').text = maptitle
+#                    ET.SubElement(mapentry,'slug').text = mapslug
+#                    ET.SubElement(mapentry,'image').text = os.path.basename(e['href']['path'])
+#                    content += '<a href="/map/{}"><i>{}</i></a><br>\n'.format(mapslug,e['title'])
+#                else:
                     content += "<i>{}</i><br>\n".format(e['title'])
             content += "</p>\n"
             return content
         elif e['type'] == 'inline':
             content += "<p>\n"
-            content += " ".join([re.sub(r'</?p>','',getEntry(x,d)) for x in se['entries']])
+            content += " ".join([re.sub(r'</?p>','',getEntry(x,d,h,noencounter)) for x in e['entries']])
             content += "</p>\n"
+            return content
+        elif e['type'] == 'inlineBlock':
+            content += "<blockquote>\n"
+            content += "<p>\n"
+            content += " ".join([re.sub(r'</?p>','',getEntry(x,d,h,noencounter)) for x in e['entries']])
+            content += "</p>\n"
+            content += "</blockquote>\n"
             return content
         elif e['type'] == 'cell':
             if 'exact' in e['roll']:
@@ -926,46 +453,47 @@ def getEntry(e,d=None):
         elif e['type'] == 'insetReadaloud':
             content += "<blockquote class=\"read\">\n"
             for x in e['entries']:
-                content += "<p>{}</p>\n".format(fixTags(x,d,e))
+                content += "<p>{}</p>\n".format(fixTags(getEntry(x,d,h,noencounter),d,e,noencounter))
             content += "</blockquote>\n"
             return content
         elif e['type'] == 'gallery':
             content += "<p>"
             for image in e['images']:
                 content += "<img src=\"{}\"><br>\n".format(os.path.basename(image['href']['path']))
+                #maptitle = ""
                 if 'title' in image:
-                    if "player version" in image['title'].lower() or 'map' in image['title'].lower():
-                        if image['title'] == "(Player Version)":
-                            maptitle += " " + image['title']
-                        else:
-                            maptitle = image['title']
-                        mapbaseslug = d['currentslug'] + "-map"
-                        mapslug = mapbaseslug + str(len([i for i in slugs if mapbaseslug in i]))
-                        mapuuid = str(uuid.uuid5(bookuuid,mapslug))
-                        slugs.append(mapslug)
-                        mapentry = ET.SubElement(module,'map',{'id': mapuuid,'parent': d['currentpage'],'sort': str(len([i for i in slugs if mapbaseslug in i]) + 199)})
-                        ET.SubElement(mapentry,'name').text = maptitle
-                        ET.SubElement(mapentry,'slug').text = mapslug
-                        ET.SubElement(mapentry,'image').text = os.path.basename(image['href']['path'])
-                        content += '<a href="/map/{}"><i>{}</i></a><br>\n'.format(mapslug,image['title'])
-                    else:
+                #    if "player version" in image['title'].lower() or 'map' in image['title'].lower():
+                #        if image['title'] == "(Player Version)":
+                #            maptitle += " " + image['title']
+                #        else:
+                #            maptitle = image['title']
+                #        mapbaseslug = d['currentslug'] + "-map"
+                #        mapslug = mapbaseslug + str(len([i for i in slugs if mapbaseslug in i]))
+                #        mapuuid = str(uuid.uuid5(bookuuid,mapslug))
+                #        slugs.append(mapslug)
+                #        mapentry = ET.SubElement(module,'map',{'id': mapuuid,'parent': d['subsection'] if 'subsection' in d else d['currentpage'],'sort': str(len([i for i in slugs if mapbaseslug in i]) + 199)})
+                #        ET.SubElement(mapentry,'name').text = maptitle
+                #        ET.SubElement(mapentry,'slug').text = mapslug
+                #        ET.SubElement(mapentry,'image').text = os.path.basename(image['href']['path'])
+                #        content += '<a href="/map/{}"><i>{}</i></a><br>\n'.format(mapslug,image['title'])
+                #    else:
                         content += "<i>{}</i><br>\n".format(image['title'])
-                #shutil.copy("./img/" + image['href']['path'],os.path.join(tempdir,os.path.basename(image['href']['path'])))
-                with Image(filename="./img/" + image['href']['path']) as img:
-                    if img.width > 4096 or img.height > 4096:
-                        img.transform(resize='4096x4096>')
-                    img.save(filename=os.path.join(tempdir,os.path.basename(image['href']['path'])))
+                shutil.copy("./img/" + image['href']['path'],os.path.join(tempdir,os.path.basename(image['href']['path'])))
+                #with Image(filename="./img/" + image['href']['path']) as img:
+                #    if img.width > 8192 or img.height > 8192:
+                #        img.transform(resize='8192x8192>')
+                #    img.save(filename=os.path.join(tempdir,os.path.basename(image['href']['path'])))
             content += "</p>\n"
             return content
         elif e['type'] == 'flowchart':
             line = '<div style="font-size: 0; width: 3px; height: 20px; color: #cdb078; background-color: #cdb078; margin: auto"></div>'
-            return '<div align="center">{}</div>'.format(line.join([getEntry(x,d) for x in e['blocks']]))
+            return '<div align="center">{}</div>'.format(line.join([getEntry(x,d,h,True) for x in e['blocks']]))
         elif e['type'] == 'flowBlock':
             borderimg = "url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwAgMAAAAqbBEUAAAABGdBTUEAALGPC/xhBQAAAAFzUkdCAK7OHOkAAAAJUExURQAAAP///82weFCq0dQAAAABdFJOUwBA5thmAAAAMUlEQVQoz2NgYGDQWgUEKxggAA8nFAgGjgNyCogDovFwVobCQdZw4BDp7YGPH+ISEgAPpq39iSHY4QAAAABJRU5ErkJggg==')"
             content = '<div style="text-align:left;border: 16px solid transparent;border-image-slice: 16 16 16 16 fill;border-image-source: {}">'.format(borderimg)
             if 'name' in e:
                 content += '<h4 align="center">{}</h4>\n'.format(e['name'])
-            content += "\n".join([getEntry(x,d) for x in e['entries']])
+            content += "\n".join([getEntry(x,d,h) for x in e['entries']])
             content += "</div>"
             return content
         else:
@@ -975,12 +503,12 @@ def getEntry(e,d=None):
     elif type(e) == list:
         itemlist = []
         for i in e:
-            itemlist.append(getEntry(i,d))
+            itemlist.append(getEntry(i,d,h,noencounter))
         return "\n".join(itemlist)
     elif e == "":
         return " &nbsp; "
     else:
-        return "<p>{}</p>".format(fixTags(str(e),d,e))
+        return "<p>{}</p>".format(fixTags(str(e),d,e,noencounter))
 
 def getTable(e,d=None):
     content = "<table>\n"
@@ -989,28 +517,354 @@ def getTable(e,d=None):
     if 'colLabels' in e:
         content += "<thead><tr>\n"
         for i in range(len(e['colLabels'])):
-            content += "<td class=\"{}\">{}</td>".format(e['colStyles'][i] if 'colStyles' in e else '',fixTags(e['colLabels'][i],d,e))
+            content += "<td class=\"{}\">{}</td>".format(e['colStyles'][i] if 'colStyles' in e else '',fixTags(e['colLabels'][i],d,e,True))
         content += "</thead></tr>\n"
     content += "<tbody>\n"
     for row in e['rows']:
         if type(row) == dict:
             content += "<tr class=\"{}\">\n".format(row['style'])
             for rc in row['row']:
-                content += "<td>{}</td>\n".format(getEntry(rc,d))
+                content += "<td>{}</td>\n".format(getEntry(rc,d,3,True))
         else:
             content += "<tr>\n"
             for rc in row:
-                content += "<td>{}</td>\n".format(getEntry(rc,d))
+                content += "<td>{}</td>\n".format(getEntry(rc,d,3,True))
         content += "</tr>\n"
     content += "</tbody>\n"
     content += "</table>\n"
     return content
 
-with open("./data/books.json",encoding='utf-8') as f:
-        b = json.load(f)
-        f.close()
+def createMap(map,mapgroup):
+    if 'attributes' in map:
+        map["name"] = map["attributes"]["name"]
+        bgimg = None
+        map["width"] = 0
+        map["height"] = 0
+        for image in map["graphics"]:
+            if image["layer"] != "map":
+                continue
+            if type(image["width"]) == str:
+                image["width"] = float(image["width"])
+            if type(image["height"]) == str:
+                image["height"] = float(image["height"])
+            if image["width"] > map["width"] or image["height"] > map["height"]:
+                map["width"] = image["width"]
+                map["height"] = image["height"]
+                bgimg = image
+        if not bgimg:
+            return
+        map["width"] = map["attributes"]["width"]*70
+        map["height"] = map["attributes"]["height"]*70
+        map["sort"] = map['attributes']['placement']
+        map["grid"] = round(map['attributes']['snapping_increment']*(map['attributes']['scale_number']/5)/map['attributes']['scale_number']*350)
+        map["gridDistance"] = round(map['attributes']['scale_number'])
+        map["gridUnits"] = map['attributes']['scale_units']
+        map["gridAlpha"] = 1 if map['attributes']['showgrid'] else 0
+        map["gridColor"] = map['attributes']['gridcolor']
+        if not os.path.exists("./img/roll20/{}".format(book["id"])):
+            os.mkdir("./img/roll20/{}".format(book["id"]))
+        imgext = os.path.splitext(os.path.basename(urllib.parse.urlparse(bgimg["imgsrc"]).path))[1]
+        if not imgext:
+            imgext = ".png"
+        if not os.path.exists("./img/roll20/{}/map{}{}".format(book["id"],bgimg["id"],imgext)):
+            imagesrc = re.sub(r'(med.|thumb.)', 'original.',bgimg["imgsrc"])
+            req = urllib.request.Request(imagesrc, headers={'user-agent': 'mozilla/5.0'})
+            try:
+                imgfile = urllib.request.urlopen(req)
+                with Image(file=imgfile) as img:
+                    if bgimg["rotation"] != 0:
+                        img.rotate(bgimg["rotation"])
+                    img.save(filename="./img/roll20/{}/map{}{}".format(book["id"],bgimg["id"],imgext))
+            except urllib.error.HTTPError as e:
+                print(" |> Map Error {}: {} {}".format(e.code,bgimg["id"],imagesrc),file=sys.stderr,end='')
+                return
+        map["img"] = "./img/roll20/{}/map{}{}".format(book["id"],bgimg["id"],imgext)
+        map["shiftX"] = (bgimg["width"]/2.0) - bgimg["left"]
+        map["shiftY"] = (bgimg["height"]/2.0) - bgimg["top"]
+    else:
+        map["offsetX"] = (map["width"] + math.ceil(0.5 * map["width"] / (map["grid"] * 2)) * (map["grid"] * 2) - map["width"]) * 0.5
+        map["offsetY"] = (map["height"] + math.ceil(0.5 * map["height"] / (map["grid"] * 2)) * (map["grid"] * 2) - map["height"]) * 0.5
+
+    if map["name"] == "Start":
+        return
+    mapbaseslug = slugify(map['name'])
+    mapslug = mapbaseslug + str(len([i for i in slugs if mapbaseslug in i]))
+    mapuuid = uuid.uuid5(bookuuid,mapslug)
+    parent = mapgroup
+    slugs.append(mapslug)
+    if not map["img"] and map["tiles"][0]["width"] >= map["width"] and map["tiles"][0]["height"] >= map["height"]:
+        bg = map["tiles"].pop(0)
+        if bg["img"].startswith("worlds/"):
+            bg["img"] = "./data/" + bg["img"]
+        imgext = os.path.splitext(os.path.basename(urllib.parse.urlparse(bg["img"]).path))[1]
+        if not imgext:
+            imgext = ".png"
+        map["img"] = shutil.copy(bg["img"],os.path.join(tempdir,os.path.basename("map-{}{}".format(mapslug,imgext))))
+        map["shiftX"] = map["offsetX"]-bg["x"]
+        map["shiftY"] = map["offsetY"]-bg["y"]
+    map["rescale"] = 1.0
+    if map["width"] > 8192 or map["height"] > 8192:
+        map["rescale"] = 8192.0/map["width"] if map["width"] >= map["height"] else 8192.0/map["height"]
+        map["grid"] = round(map["grid"]*map["rescale"])
+        map["width"] *= map["rescale"]
+        map["height"] *= map["rescale"]
+        map['shiftX'] *= map["rescale"]
+        map['shiftY'] *= map["rescale"]       
+
+    mapentry = ET.SubElement(module,'map',{'id': str(mapuuid),'parent': mapgroup,'sort': str(map["sort"])})
+    ET.SubElement(mapentry,'name').text = map['name']
+    ET.SubElement(mapentry,'slug').text = mapslug
+    ET.SubElement(mapentry,'gridSize').text = str(round(map["grid"]*(5.0/map["gridDistance"])))
+    ET.SubElement(mapentry,'gridScale').text = str(round(map["gridDistance"]*((5.0/map["gridDistance"]))))
+    ET.SubElement(mapentry,'gridUnits').text = str(map["gridUnits"])
+    ET.SubElement(mapentry,'gridVisible').text = "YES" if map['gridAlpha'] > 0 else "NO"
+    ET.SubElement(mapentry,'gridColor').text = map['gridColor']
+    ET.SubElement(mapentry,'gridOffsetX').text = str(round(map['shiftX']))
+    ET.SubElement(mapentry,'gridOffsetY').text = str(round(map['shiftY']))
+
+    if map["img"]:
+        if map["img"].startswith("worlds/"):
+            map["img"] = "./data/" + map["img"]
+        ET.SubElement(mapentry,'image').text = os.path.basename(map["img"])
+        with Image(filename=map["img"]) as img:
+            if img.width > 8192 or img.height > 8192:
+                img.transform(resize='8192x8192>')
+                img.save(filename=os.path.join(tempdir,os.path.basename(map["img"])))
+            elif not os.path.exists(os.path.join(tempdir,os.path.basename(map["img"]))):
+                shutil.copy(map["img"],os.path.join(tempdir,os.path.basename(map["img"])))
+            if map["height"] != img.height or map["width"] != img.width:
+                map["scale"] = map["width"]/img.width if map["width"]/img.width >= map["height"]/img.height else map["height"]/img.height
+            else:
+                map["scale"] = 1.0
+    else:
+        print(" |> Map Error NO BG FOR: {}".format(map["name"]),file=sys.stderr,end='')
+        with Image(filename="./data/worlds/nobg.png") as img:
+            img.transform(resize='{}x{}!'.format(map["width"],map["height"]))
+            img.save(filename=os.path.join(tempdir,"automap-{}.png".format(mapslug)))
+        ET.SubElement(mapentry,'image').text = os.path.basename("automap-{}.png".format(mapslug))
+        map["scale"] = 1.0
+        if 'thumb' in map and map["thumb"]:
+            if map["thumb"].startswith("worlds/"):
+                map["thumb"] = "./data/" + map["thumb"]
+            ET.SubElement(mapentry,'snapshot').text = "thumb-"+os.path.basename(map["thumb"])
+            shutil.copy(map["thumb"],os.path.join(tempdir,"thumb-"+os.path.basename(map["thumb"])))
+
+    ET.SubElement(mapentry,'scale').text = str(map["scale"])
+    if "paths" in map:
+        map["walls"] = map["paths"]
+    if "walls" in map and len(map["walls"])>0:
+        ET.SubElement(mapentry,'lineOfSight').text = "YES"
+        ET.SubElement(mapentry,'canvas').text = mapslug + ".svg"
+        svguuid = str(uuid.uuid5(mapuuid,"svg"))
+        svg = ET.Element('svg', { 'id': svguuid, 'xmlns': 'http://www.w3.org/2000/svg', 'version': '1.0', 'viewBox': "0 0 {} {}".format(map['width'],map['height']) } )
+        for i in range(len(map["walls"])):
+            p = map["walls"][i]
+            print("\rwalls [{}/{}]".format(i,len(map["walls"])),file=sys.stderr,end='')
+            if 'path' in p:
+                rawpath = json.loads(p['path'])
+                path = ""
+                pathlist = []
+                for i in range(len(rawpath)):
+                    path += rawpath[i][0]
+                    if rawpath[i][0] in ['M','L']:
+                        pathlist.append(rawpath[i][1]+p["left"]+map['shiftX']-p['width']/2)
+                        pathlist.append(rawpath[i][2]+p["top"]+map['shiftY']-p['height']/2)
+                        path += "{},{}".format(
+                                (rawpath[i][1]+p["left"]+map['shiftX']-p['width']/2)*map["rescale"],
+                                (rawpath[i][2]+p["top"]+map['shiftY']-p['height']/2)*map["rescale"]
+                                )
+                    elif rawpath[i][0] in ['C']:
+                        pathlist.append(rawpath[i][1]+p["left"]+map['shiftX']-p['width']/2)
+                        pathlist.append(rawpath[i][2]+p["top"]+map['shiftY']-p['height']/2)
+                        pathlist.append(rawpath[i][3]+p["left"]+map['shiftX']-p['width']/2)
+                        pathlist.append(rawpath[i][4]+p["top"]+map['shiftY']-p['height']/2)
+                        pathlist.append(rawpath[i][5]+p["left"]+map['shiftX']-p['width']/2)
+                        pathlist.append(rawpath[i][6]+p["top"]+map['shiftY']-p['height']/2)
+                        path += "{},{},{},{},{},{}".format(
+                                (rawpath[i][1]+p["left"]+map['shiftX']-p['width']/2)*map["rescale"],
+                                (rawpath[i][2]+p["top"]+map['shiftY']-p['height']/2)*map["rescale"],
+                                (rawpath[i][3]+p["left"]+map['shiftX']-p['width']/2)*map["rescale"],
+                                (rawpath[i][4]+p["top"]+map['shiftY']-p['height']/2)*map["rescale"],
+                                (rawpath[i][5]+p["left"]+map['shiftX']-p['width']/2)*map["rescale"],
+                                (rawpath[i][6]+p["top"]+map['shiftY']-p['height']/2)*map["rescale"]
+                                )
+                    elif rawpath[i][0] in ['Q']:
+                        pathlist.append(rawpath[i][1]+p["left"]+map['shiftX']-p['width']/2)
+                        pathlist.append(rawpath[i][2]+p["top"]+map['shiftY']-p['height']/2)
+                        pathlist.append(rawpath[i][3]+p["left"]+map['shiftX']-p['width']/2)
+                        pathlist.append(rawpath[i][4]+p["top"]+map['shiftY']-p['height']/2)
+                        path += "{},{},{},{}".format(
+                                (rawpath[i][1]+p["left"]+map['shiftX']-p['width']/2)*map["rescale"],
+                                (rawpath[i][2]+p["top"]+map['shiftY']-p['height']/2)*map["rescale"],
+                                (rawpath[i][3]+p["left"]+map['shiftX']-p['width']/2)*map["rescale"],
+                                (rawpath[i][4]+p["top"]+map['shiftY']-p['height']/2)*map["rescale"]
+                                )
+            else:
+                pathlist = [
+                        (p["c"][0]-map["offsetX"])*map["rescale"],
+                        (p["c"][1]-map["offsetY"])*map["rescale"],
+                        (p["c"][2]-map["offsetX"])*map["rescale"],
+                        (p["c"][3]-map["offsetY"])*map["rescale"]
+                        ]
+                path = "M{},{}L{},{}".format(*pathlist)
+            isConnected = False
+            for pWall in mapentry.iter('wall'):
+                lastpath = pWall.find('data')
+                pWallID=pWall.get('id')
+                if lastpath != None and lastpath.text.endswith(",{:.1f},{:.1f}".format(pathlist[0],pathlist[1])):
+                    isConnected = True
+                    pWall.set('id',pWallID+' '+p['_id'])
+                    lastpath.text += ','+','.join("{:.1f}".format(x) for x in pathlist)
+            if not isConnected:
+                wall = ET.SubElement(mapentry,'wall',{'id': p['id'] if 'id' in p else p['_id'] })
+                lastpath = ET.SubElement(wall,'data')
+                lastpath.text = ','.join("{:.1f}".format(x) for x in pathlist)
+            if 'stroke' in p:
+                if p["stroke"] == 'transparent':
+                    ET.SubElement(wall,'color').text = '#ff00ff'
+                    ET.SubElement(wall,'type').text = 'invisible'
+                else:
+                    ET.SubElement(wall,'color').text = p["stroke"]
+                    ET.SubElement(wall,'type').text = 'door' if p["stroke"] == '#ff9900' else 'normal'
+            else:
+                if p['door'] == 1:
+                    ET.SubElement(wall,'type').text = 'door'
+                    ET.SubElement(wall,'color').text = '#00ffff'
+                    if p['ds'] > 0:
+                        ET.SubElement(wall,'door').text = 'locked' if p['ds'] == 2 else 'open'
+                elif p['door'] == 2:
+                    ET.SubElement(wall,'type').text = 'secretDoor'
+                    ET.SubElement(wall,'color').text = '#00ffff'
+                    if p['ds'] > 0:
+                        ET.SubElement(wall,'door').text = 'locked' if p['ds'] == 2 else 'open'
+                elif p['move'] == 0 and p['sense'] == 1:
+                    ET.SubElement(wall,'type').text = 'ethereal'
+                    ET.SubElement(wall,'color').text = '#7f007f'
+                elif p['move'] == 1 and p['sense'] == 0:
+                    ET.SubElement(wall,'type').text = 'invisible'
+                    ET.SubElement(wall,'color').text = '#ff00ff'
+                elif p['move'] == 1 and p['sense'] == 2:
+                    ET.SubElement(wall,'type').text = 'terrain'
+                    ET.SubElement(wall,'color').text = '#ffff00'
+                else:
+                    ET.SubElement(wall,'type').text = 'normal'
+                    ET.SubElement(wall,'color').text = '#ff7f00'
+                if p['door'] > 0:
+                    p["stroke"] = '#00ffff'
+                else:
+                    p["stroke"] = '#ff7f00'
+                p["stroke_width"] = 5
+                p["layer"] = "walls"
+
+            ET.SubElement(wall,'generated').text = 'YES'
+
+            ET.SubElement(svg,'path', {
+                'class' : "wall" if p["layer"] == "walls" else p["layer"],
+                'stroke': '#00ffff' if p["stroke"] == '#ff9900' else '#ff7f00',
+                'stroke-opacity': "1.0",
+                'stroke-width': str(p["stroke_width"]),
+                'stroke-linejoin': "round",
+                'stroke-linecap': "round",
+                'fill': "none",
+                'd': path } )
+
+        tree = ET.ElementTree(utils.indent(svg, 1))
+        tree.write(os.path.join(tempdir,mapslug + ".svg"), xml_declaration=False, short_empty_elements=False, encoding='utf-8')
+
+    pageref = pageSearch(map["name"])
+    if pageref:
+        marker = ET.SubElement(mapentry,'marker')
+        ET.SubElement(marker,'name').text = map["name"]
+        ET.SubElement(marker,'color').text = '#ff0000'
+        ET.SubElement(marker,'shape').text = 'marker'
+        ET.SubElement(marker,'size').text = 'medium'
+        ET.SubElement(marker,'hidden').text = 'YES'
+        ET.SubElement(marker,'locked').text = 'YES'
+        ET.SubElement(marker,'x').text = str(round(map["width"]*.1))
+        ET.SubElement(marker,'y').text = str(round(map["height"]*.1))
+        ET.SubElement(marker,'content',{ 'ref': pageref })
+
+    if 'graphics' in map:
+        for i in range(len(map["graphics"])):
+            image = map["graphics"][i]
+            print("\rassets [{}/{}]".format(i,len(map["graphics"])),file=sys.stderr,end='')
+            if image["id"] == bgimg["id"] or image["represents"] != "":
+                continue
+            tile = ET.SubElement(mapentry,'tile')
+            ET.SubElement(tile,'x').text = str(round(image["left"]*map["rescale"]))
+            ET.SubElement(tile,'y').text = str(round(image["top"]*map["rescale"]))
+            ET.SubElement(tile,'width').text = str(round(image["width"]*map["rescale"]))
+            ET.SubElement(tile,'height').text = str(round(image["height"]*map["rescale"]))
+            ET.SubElement(tile,'opacity').text = "1.0"
+            ET.SubElement(tile,'locked').text = "YES"
+            ET.SubElement(tile,'layer').text = "dm" if image["layer"] == 'gmlayer' else "object"
+
+            if image["light_radius"]:
+                if type(image["light_dimradius"]) == str:
+                    image["light_dimradius"] = float(image["light_dimradius"] or 0)
+                if type(image["light_radius"]) == str:
+                    image["light_radius"] = float(image["light_radius"] or 0)
+                light = ET.SubElement(tile,'light')
+                ET.SubElement(light,'enabled').text = "YES"
+                ET.SubElement(light,'radiusMin').text = str(round(image["light_dimradius"]))
+                ET.SubElement(light,'radiusMax').text = str(round(image["light_radius"]))
+                ET.SubElement(light,'alwaysVisible').text = "NO"
+                ET.SubElement(light,'color').text = "#ffffff"
+                ET.SubElement(light,'opacity').text = "0.5"
+
+            asset = ET.SubElement(tile,'asset')
+            ET.SubElement(asset,'name').text = image["name"] or "Map Asset {:03d}".format(i)
+            ET.SubElement(asset,'type').text = "image"
+
+            imgext = os.path.splitext(os.path.basename(urllib.parse.urlparse(image["imgsrc"]).path))[1]
+            if not imgext:
+                imgext = ".png"
+            ET.SubElement(asset,'resource').text = "asset{}{}".format(image["id"],imgext)
+            if not os.path.exists("./img/roll20/{}/asset{}{}".format(book["id"],image["id"],imgext)):
+                imagesrc = re.sub(r'(med.|thumb.)', 'original.',image["imgsrc"])
+                try:
+                    def progress(block_num, block_size, total_size):
+                        pct = 100.00*((block_num * block_size)/total_size)
+                        print("\r{:.0f}%".format(pct),file=sys.stderr,end='')
+                    urllib.request.urlretrieve(imagesrc,"./img/roll20/{}/asset{}{}".format(book["id"],image["id"],imgext),progress)
+                except urllib.error.HTTPError as e:
+                    print(" |> Asset Error {}: {} {}".format(e.code,image["id"],imagesrc),file=sys.stderr,end='')
+                    continue
+            shutil.copy("./img/roll20/{}/asset{}{}".format(book["id"],image["id"],imgext),os.path.join(tempdir,"asset{}{}".format(image["id"],imgext)))
+    if 'tiles' in map:
+        for i in range(len(map["tiles"])):
+            image = map["tiles"][i]
+            print("\rassets [{}/{}]".format(i,len(map["tiles"])),file=sys.stderr,end='')
+            tile = ET.SubElement(mapentry,'tile')
+            ET.SubElement(tile,'x').text = str(round((image["x"]-map["offsetX"]+(image["width"]*image["scale"]/2))*map["rescale"]))
+            ET.SubElement(tile,'y').text = str(round((image["y"]-map["offsetY"]+(image["height"]*image["scale"]/2))*map["rescale"]))
+            ET.SubElement(tile,'zIndex').text = str(image["z"])
+            ET.SubElement(tile,'width').text = str(round(image["width"]*image["scale"]*map["rescale"]))
+            ET.SubElement(tile,'height').text = str(round(image["height"]*image["scale"]*map["rescale"]))
+            ET.SubElement(tile,'opacity').text = "1.0"
+            ET.SubElement(tile,'rotation').text = str(image["rotation"])
+            ET.SubElement(tile,'locked').text = "YES" if image["locked"] else "NO"
+            ET.SubElement(tile,'layer').text = "object"
+            ET.SubElement(tile,'hidden').text = "YES" if image["hidden"] else "NO"
+
+            asset = ET.SubElement(tile,'asset')
+            ET.SubElement(asset,'name').text = os.path.splitext(os.path.basename(image["img"]))[0]
+            ET.SubElement(asset,'type').text = "image"
+            ET.SubElement(asset,'resource').text = mapslug+"_"+os.path.basename(image["img"])
+            shutil.copy("./data/"+image["img"],os.path.join(tempdir,mapslug+"_"+os.path.basename(image["img"])))
+    return mapslug
+
+bookfound = False
 bookkey = "book"
-if args.adventure:
+if not args.adventure:
+    with open("./data/books.json",encoding='utf-8') as f:
+            b = json.load(f)
+            f.close()
+    for book in b[bookkey]:
+        if args.book.lower() == book["id"].lower():
+            bookfound = True
+if args.adventure or not bookfound:
+    args.adventure = True
     with open("./data/adventures.json",encoding='utf-8') as f:
             b = json.load(f)
             f.close()
@@ -1021,12 +875,52 @@ for book in b[bookkey]:
         continue
     elif args.book.lower() != book["id"].lower():
         continue
-    print("{:8s}: {}".format(book["id"],book["name"]))
+    else:
+        bookfound = True
+    print("{}".format(book["name"]))
     filemask = "./data/book/book-{}.json" if not args.adventure else "./data/adventure/adventure-{}.json"
     with open(filemask.format(book["id"].lower())) as f:
         data = json.load(f)
         f.close()
+    if not os.path.exists("./data/worlds/{}".format(book["id"].lower())):
+        try:
+            def progress(block_num, block_size, total_size):
+                pct = 100.00*((block_num * block_size)/total_size)
+                print("\rDownloading Plutonium maps {:.2f}%".format(pct),file=sys.stderr,end='')
+            urllib.request.urlretrieve("https://foundry.5e.tools/plutonium/{0}/{0}.zip".format(book["id"].lower()), "./data/worlds/{}.zip".format(book["id"].lower()),progress)
+            with zipfile.ZipFile("./data/worlds/{}.zip".format(book["id"].lower()),'r') as zip:
+                    zip.extractall("./data/worlds/")
+                    zip.close()
 
+            os.remove("./data/worlds/{}.zip".format(book["id"].lower()))
+        except urllib.error.HTTPError as e:
+            print(" |> Download Error: {}".format(e.code),file=sys.stderr)
+    if os.path.exists("./data/worlds/{}/data/scenes.db".format(book["id"].lower())):
+        with open("./data/worlds/{}/data/scenes.db".format(book["id"].lower()),encoding='utf-8') as f:
+            l = f.readline()
+            book['maps'] = []
+            while l:
+                map = json.loads(l)
+                if len(map["img"]) > 0 or len(map["tiles"]) > 0:
+                    book["maps"].append(map)
+                l = f.readline()
+            f.close()
+    if os.path.exists("./data/roll20-module/roll20-module-{}.json".format(book["id"].lower())):
+        with open("./data/roll20-module/roll20-module-{}.json".format(book["id"].lower()),encoding='utf-8') as f:
+            r20 = json.load(f)
+            if "maps" in book:
+                for map in r20["maps"]:
+                    mapexists = False
+                    for fmap in book["maps"]:
+                        if map["attributes"]["name"] == fmap["name"]:
+                            mapexists = True
+                            break
+                    if not mapexists:
+                        map["name"] = map["attributes"]["name"]
+                        book["maps"].append(map)
+            else:
+                book["maps"] = r20["maps"]
+            f.close()
     if 'author' not in book:
         book['author'] = "Wizards RPG Team"
     global bookuuid
@@ -1061,6 +955,11 @@ for book in b[bookkey]:
             img.crop(width=img.width, height=int(img.width/1.5), gravity='north')
             img.save(filename=os.path.join(tempdir,"{}_cover.png".format(book['id'])))
         image.text = "{}_cover.png".format(book['id'])
+    elif os.path.exists("img/dndbeyond/{}.jpeg".format(book['name'].split(': ')[0])):
+        with Image(filename="img/dndbeyond/{}.jpeg".format(book['name'].split(': ')[0])) as img:
+            img.crop(width=img.width, height=int(img.width/1.5), gravity='north')
+            img.save(filename=os.path.join(tempdir,"{}_cover.png".format(book['id'])))
+        image.text = "{}_cover.png".format(book['id'])
     else:
         image.text = os.path.basename(book['coverUrl'])
         shutil.copy(book['coverUrl'],os.path.join(tempdir,os.path.basename(book['coverUrl'])))
@@ -1080,13 +979,28 @@ for book in b[bookkey]:
         if d['type'] == "section":
             order += 1
             processSection(order,d,module)
+            print("\rConverting sections [{}/{}] {:.0f}%".format(order,len(data['data']),order/len(data['data'])*100),file=sys.stderr,end='')
         else:
             print("Need to handle type: ",data['type'])
+    mapcount = 0
+    if 'maps' in book:
+        mapsbaseslug = 'maps'
+        mapsslug = mapsbaseslug + str(len([i for i in slugs if mapsbaseslug in i]))
+        mapgroup = str(uuid.uuid5(bookuuid,mapsslug))
+        group = ET.SubElement(module, 'group', {'id': mapgroup, 'sort': str(order+1)})
+        ET.SubElement(group, 'name').text = "Maps"
+        ET.SubElement(group, 'slug').text = mapsslug
+        for map in book['maps']:
+            mapcount += 1
+            sys.stderr.write("\033[K")
+            print("\rConverting maps [{}/{}] {:.0f}%".format(mapcount,len(book['maps']),mapcount/len(book['maps'])*100),file=sys.stderr,end='')
+            createMap(map,mapgroup)
 
 
-
-if args.book:
+if args.book and bookfound:
     # write to file
+    sys.stderr.write("\033[K")
+    print("\rWriting XML",file=sys.stderr,end='')
     tree = ET.ElementTree(utils.indent(module, 1))
     tree.write(os.path.join(tempdir,"module.xml"), xml_declaration=True, short_empty_elements=False, encoding='utf-8')
     zipfilename = "book-{}.module".format(args.book)
@@ -1100,9 +1014,14 @@ if args.book:
                #create complete filepath of file in directory
                filePath = os.path.join(folderName, filename)
                # Add file to zip
+               sys.stderr.write("\033[K")
+               print("\rAdding: {}".format(filename),file=sys.stderr,end='')
                zipObj.write(filePath, os.path.basename(filePath)) 
+    sys.stderr.write("\033[K")
+    print("\rDeleteing temporary files",file=sys.stderr,end='')
     shutil.rmtree(tempdir)
-
+    sys.stderr.write("\033[K")
+    print("\rFinished creating module: {}".format(zipfilename),file=sys.stderr)
 
 #os.rename(zipfile,args.output)
 #    else:
