@@ -712,61 +712,94 @@ def createMap(map,mapgroup):
                 lastpath = pWall.find('data')
                 pWallID=pWall.get('id')
                 if lastpath != None and lastpath.text.endswith(",{:.1f},{:.1f}".format(pathlist[0],pathlist[1])):
+                    wType = pWall.find('type')
+                    if p['door'] > 0:
+                        if p['door'] == 1 and wType.text != 'door':
+                            continue
+                        if p['door'] == 2 and wType.text != 'secretDoor':
+                            continue
+                        if p['ds'] > 0:
+                            door = pWall.find('door')
+                            if door == None:
+                                continue
+                            elif p['ds'] == 1 and door.text != 'open':
+                                continue
+                            elif p['ds'] == 2 and door.text != 'locked':
+                                continue
+                    elif p['move'] == 0 and p['sense'] == 1 and wType.text != 'ethereal':
+                        continue
+                    elif p['move'] == 1 and p['sense'] == 0 and wType.text != 'invisible':
+                        continue
+                    elif p['move'] == 1 and p['sense'] == 2 and wType.text != 'terrain':
+                        continue
+                    if 'dir' in p:
+                        wSide = pWall.find('side')
+                        if wSide == None and p['dir'] > 0:
+                            continue
+                        if p['dir'] == 1 and wSide.text != 'left':
+                            continue
+                        if p['dir'] == 1 and wSide.text != 'right':
+                            continue
                     isConnected = True
                     pWall.set('id',pWallID+' '+p['_id'])
                     lastpath.text += ','+','.join("{:.1f}".format(x) for x in pathlist)
+                    break
             if not isConnected:
                 wall = ET.SubElement(mapentry,'wall',{'id': p['id'] if 'id' in p else p['_id'] })
                 lastpath = ET.SubElement(wall,'data')
                 lastpath.text = ','.join("{:.1f}".format(x) for x in pathlist)
-            if 'stroke' in p:
-                if p["stroke"] == 'transparent':
-                    ET.SubElement(wall,'color').text = '#ff00ff'
-                    ET.SubElement(wall,'type').text = 'invisible'
+            if not isConnected:
+                if 'stroke' in p:
+                    if p["stroke"] == 'transparent':
+                        ET.SubElement(wall,'color').text = '#ff00ff'
+                        ET.SubElement(wall,'type').text = 'invisible'
+                    else:
+                        ET.SubElement(wall,'color').text = p["stroke"]
+                        ET.SubElement(wall,'type').text = 'door' if p["stroke"] == '#ff9900' else 'normal'
                 else:
-                    ET.SubElement(wall,'color').text = p["stroke"]
-                    ET.SubElement(wall,'type').text = 'door' if p["stroke"] == '#ff9900' else 'normal'
-            else:
-                if p['door'] == 1:
-                    ET.SubElement(wall,'type').text = 'door'
-                    ET.SubElement(wall,'color').text = '#00ffff'
-                    if p['ds'] > 0:
-                        ET.SubElement(wall,'door').text = 'locked' if p['ds'] == 2 else 'open'
-                elif p['door'] == 2:
-                    ET.SubElement(wall,'type').text = 'secretDoor'
-                    ET.SubElement(wall,'color').text = '#00ffff'
-                    if p['ds'] > 0:
-                        ET.SubElement(wall,'door').text = 'locked' if p['ds'] == 2 else 'open'
-                elif p['move'] == 0 and p['sense'] == 1:
-                    ET.SubElement(wall,'type').text = 'ethereal'
-                    ET.SubElement(wall,'color').text = '#7f007f'
-                elif p['move'] == 1 and p['sense'] == 0:
-                    ET.SubElement(wall,'type').text = 'invisible'
-                    ET.SubElement(wall,'color').text = '#ff00ff'
-                elif p['move'] == 1 and p['sense'] == 2:
-                    ET.SubElement(wall,'type').text = 'terrain'
-                    ET.SubElement(wall,'color').text = '#ffff00'
-                else:
-                    ET.SubElement(wall,'type').text = 'normal'
-                    ET.SubElement(wall,'color').text = '#ff7f00'
-                if p['door'] > 0:
-                    p["stroke"] = '#00ffff'
-                else:
-                    p["stroke"] = '#ff7f00'
-                p["stroke_width"] = 5
-                p["layer"] = "walls"
+                    if p['door'] == 1:
+                        ET.SubElement(wall,'type').text = 'door'
+                        ET.SubElement(wall,'color').text = '#00ffff'
+                        if p['ds'] > 0:
+                            ET.SubElement(wall,'door').text = 'locked' if p['ds'] == 2 else 'open'
+                    elif p['door'] == 2:
+                        ET.SubElement(wall,'type').text = 'secretDoor'
+                        ET.SubElement(wall,'color').text = '#00ffff'
+                        if p['ds'] > 0:
+                            ET.SubElement(wall,'door').text = 'locked' if p['ds'] == 2 else 'open'
+                    elif p['move'] == 0 and p['sense'] == 1:
+                        ET.SubElement(wall,'type').text = 'ethereal'
+                        ET.SubElement(wall,'color').text = '#7f007f'
+                    elif p['move'] == 1 and p['sense'] == 0:
+                        ET.SubElement(wall,'type').text = 'invisible'
+                        ET.SubElement(wall,'color').text = '#ff00ff'
+                    elif p['move'] == 1 and p['sense'] == 2:
+                        ET.SubElement(wall,'type').text = 'terrain'
+                        ET.SubElement(wall,'color').text = '#ffff00'
+                    else:
+                        ET.SubElement(wall,'type').text = 'normal'
+                        ET.SubElement(wall,'color').text = '#ff7f00'
+                    if 'dir' in p and p['dir'] > 0:
+                        ET.SubElement(wall,'side').text = 'left' if p['dir'] == 2 else 'right'
 
-            ET.SubElement(wall,'generated').text = 'YES'
+                    if p['door'] > 0:
+                        p["stroke"] = '#00ffff'
+                    else:
+                        p["stroke"] = '#ff7f00'
+                    p["stroke_width"] = 5
+                    p["layer"] = "walls"
 
-            ET.SubElement(svg,'path', {
-                'class' : "wall" if p["layer"] == "walls" else p["layer"],
-                'stroke': '#00ffff' if p["stroke"] == '#ff9900' else '#ff7f00',
-                'stroke-opacity': "1.0",
-                'stroke-width': str(p["stroke_width"]),
-                'stroke-linejoin': "round",
-                'stroke-linecap': "round",
-                'fill': "none",
-                'd': path } )
+                ET.SubElement(wall,'generated').text = 'YES'
+
+                ET.SubElement(svg,'path', {
+                    'class' : "wall" if p["layer"] == "walls" else p["layer"],
+                    'stroke': '#00ffff' if p["stroke"] == '#ff9900' else '#ff7f00',
+                    'stroke-opacity': "1.0",
+                    'stroke-width': str(p["stroke_width"]),
+                    'stroke-linejoin': "round",
+                    'stroke-linecap': "round",
+                    'fill': "none",
+                    'd': path } )
 
         tree = ET.ElementTree(utils.indent(svg, 1))
         tree.write(os.path.join(tempdir,mapslug + ".svg"), xml_declaration=False, short_empty_elements=False, encoding='utf-8')
