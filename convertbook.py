@@ -247,9 +247,10 @@ def markerSearch(page,marker):
                     else:
                         sectitle = "{}".format(bookref["contents"][i]['name'])
                     if re.match('(([Cc]h|[Aa]p).*: )?{}'.format(sec["name"]),sectitle):
-                        if re.match(r'((The|A[n]?) )?{}'.format(page),sec["name"]):
+                        if re.match(r'((([Cc]h|[Aa]p).*:|The|A[n]?) )?{}'.format(page),sec["name"]):
                             issec = True
                         else:
+
                             issec = False
                         pageslug = slugify(sectitle)
                         newslug = True
@@ -271,12 +272,15 @@ def markerSearch(page,marker):
                                 break;
                     if newslug:
                         break
+
             if issec and 'name' in sec and re.match(r'^{}\.'.format(re.escape(marker)),sec["name"]):
                 if 'id' in sec:
                     return({"name": sec["name"],"ref": "/page/{}#{}".format(pageslug,sec['id'])})
                 else:
                     return({"name": sec["name"],"ref": "/page/{}".format(pageslug)})
             elif 'entries' in sec:
+                if 'name' in sec and re.match(r'((The|A[n]?) )?{}'.format(re.escape(page)),sec["name"]):
+                    issec = True
                 return searchSection(sec["entries"],pageslug,issec)
         elif type(sec) == list:
             for item in sec:
@@ -312,7 +316,7 @@ def pageSearch(page):
                                 break;
                     if newslug:
                         break
-            if 'name' in sec and re.match(r'((The|A[n]?) )?{}'.format(page),sec["name"]):
+            if 'name' in sec and re.match(r'((([Cc]h|[Aa]p).*:|The|A[n]?) )?{}'.format(page),sec["name"]):
                 if 'id' in sec:
                     return("/page/{}#{}".format(pageslug,sec['id']))
                 else:
@@ -450,6 +454,7 @@ def getEntry(e,d=None,h=3,noencounter=False):
             issubsection = False
             chaptermatch = re.match(r'((Ch(\.|apter)|App(\.|endix)) ([0-9A-B]+?):[ ]?)(.*)',d['pagetitle'] if 'pagetitle' in d else e['name'])
             for sec in bookref["contents"]:
+                suborder = 0
                 if chaptermatch and 'ordinal' in sec and sec['ordinal']['type'].lower() == chaptermatch.group(2).lower() and str(sec['ordinal']['identifier']).lower() == chaptermatch.group(5).lower():
                     chaptermatches = True
                 else:
@@ -459,12 +464,14 @@ def getEntry(e,d=None,h=3,noencounter=False):
                 if titlematch or chaptermatches:
                     if 'headers' in sec:
                         for header in sec['headers']:
+                            suborder += 1
                             if (type(header) == dict and header["header"] == fixTags(e['name'])) or header == e['name']:
                                 issubsection = True
                                 break
                 elif 'headers' in sec:
                     depth = 0
                     for header in sec['headers']:
+                        suborder += 1
                         if type(header) == str and header == d['pagetitle']:
                             depth += 1
                         elif type(header) == str:
@@ -472,18 +479,15 @@ def getEntry(e,d=None,h=3,noencounter=False):
                         elif type(header) == dict and header['depth'] == depth and header['header'] == e['name']:
                             issubsection = True
                             break
+                if issubsection:
+                    break
             if issubsection:
-                if 'suborder' in d:
-                    suborder = d['suborder']
-                else:
-                    suborder = 0
-                suborder += 1
-                d['suborder'] = suborder
                 subpage = processSection(suborder,e,module,d['currentpage'],d['pagetitle'])
-                d['content'].text += "\n<a href=\"/page/{}\">{}</a>\n<br>\n".format(subpage,fixTags(e['name']))
-                d['subsection'] = str(uuid.uuid5(bookuuid,e["id"]))
-                d['subsectionname'] = fixTags(e['name'])
-                content = module.find("./page[@id='{}']/content".format(d['subsection'])).text
+                content += "\n<a href=\"/page/{}\">{}</a>\n<br>\n".format(subpage,fixTags(e['name']))
+                return content
+                #d['subsection'] = str(uuid.uuid5(bookuuid,e["id"]))
+                #d['subsectionname'] = fixTags(e['name'])
+                #content = module.find("./page[@id='{}']/content".format(d['subsection'])).text
             if issubsection:
                 return ""
         if 'source' in e and e['source'].lower() != args.book:
@@ -732,7 +736,11 @@ def createMap(map,mapgroup):
         imgext = os.path.splitext(os.path.basename(urllib.parse.urlparse(bg["img"]).path))[1]
         if not imgext:
             imgext = ".png"
-        map["img"] = shutil.copy(bg["img"],os.path.join(tempdir,os.path.basename("map-{}{}".format(mapslug,imgext))))
+        if imgext == ".webp":
+            PIL.Image.open(bg["img"]).save(os.path.join(tempdir,os.path.basename("map-{}.png".format(mapslug))))
+            map["img"] = os.path.join(tempdir,os.path.basename("map-{}.png".format(mapslug)))
+        else:
+            map["img"] = shutil.copy(bg["img"],os.path.join(tempdir,os.path.basename("map-{}{}".format(mapslug,imgext))))
         map["shiftX"] = bg["x"]-map["offsetX"]
         map["shiftY"] = bg["y"]-map["offsetY"]
     map["rescale"] = 1.0
@@ -758,13 +766,23 @@ def createMap(map,mapgroup):
     if map["img"]:
         if map["img"].startswith("worlds/"):
             map["img"] = "./data/" + map["img"]
-        ET.SubElement(mapentry,'image').text = os.path.basename(map["img"])
+        imgext = os.path.splitext(os.path.basename(map["img"]))[1]
+        if imgext == ".webp":
+            ET.SubElement(mapentry,'image').text = os.path.splitext(os.path.basename(map["img"]))[0]+".png"
+        else:
+            ET.SubElement(mapentry,'image').text = os.path.basename(map["img"])
         with Image(filename=map["img"]) as img:
             if img.width > 8192 or img.height > 8192:
                 img.transform(resize='8192x8192>')
-                img.save(filename=os.path.join(tempdir,os.path.basename(map["img"])))
+                if imgext == ".webp":
+                    img.save(filename=os.path.join(tempdir,os.path.splitext(os.path.basename(map["img"]))[0]+".png"))
+                else:
+                    img.save(filename=os.path.join(tempdir,os.path.basename(map["img"])))
             elif not os.path.exists(os.path.join(tempdir,os.path.basename(map["img"]))):
-                shutil.copy(map["img"],os.path.join(tempdir,os.path.basename(map["img"])))
+                if imgext == ".webp":
+                    img.save(filename=os.path.join(tempdir,os.path.splitext(os.path.basename(map["img"]))[0]+".png"))
+                else:
+                    shutil.copy(map["img"],os.path.join(tempdir,os.path.basename(map["img"])))
             if map["height"] != img.height or map["width"] != img.width:
                 map["scale"] = map["width"]/img.width if map["width"]/img.width >= map["height"]/img.height else map["height"]/img.height
             else:
@@ -779,8 +797,13 @@ def createMap(map,mapgroup):
         if 'thumb' in map and map["thumb"]:
             if map["thumb"].startswith("worlds/"):
                 map["thumb"] = "./data/" + map["thumb"]
-            ET.SubElement(mapentry,'snapshot').text = "thumb-"+os.path.basename(map["thumb"])
-            shutil.copy(map["thumb"],os.path.join(tempdir,"thumb-"+os.path.basename(map["thumb"])))
+            imgext = os.path.splitext(os.path.basename(map["img"]))[1]
+            if imgext == ".webp":
+                ET.SubElement(mapentry,'snapshot').text = "thumb-"+os.path.splitext(os.path.basename(map["thumb"]))[0]+".png"
+                PIL.Image.open(map["thumb"]).save(os.path.join(tempdir,"thumb-"+os.path.splitext(os.path.basename(map["img"]))[0]+".png"))
+            else:
+                ET.SubElement(mapentry,'snapshot').text = "thumb-"+os.path.basename(map["thumb"])
+                shutil.copy(map["thumb"],os.path.join(tempdir,"thumb-"+os.path.basename(map["thumb"])))
 
     ET.SubElement(mapentry,'scale').text = str(map["scale"])
     if "paths" in map:
@@ -943,7 +966,7 @@ def createMap(map,mapgroup):
         ET.SubElement(marker,'name').text = map["name"]
         ET.SubElement(marker,'color').text = '#ff0000'
         ET.SubElement(marker,'shape').text = 'marker'
-        ET.SubElement(marker,'size').text = 'medium'
+        ET.SubElement(marker,'size').text = 'medium' if map['width'] <= 2000 else 'large' if map['width'] <= 3000 else 'huge'
         ET.SubElement(marker,'hidden').text = 'YES'
         ET.SubElement(marker,'locked').text = 'YES'
         ET.SubElement(marker,'x').text = str(round(map["width"]*.1))
@@ -998,26 +1021,29 @@ def createMap(map,mapgroup):
                     print(" |> Asset Error {}: {} {}".format(e.code,image["id"],imagesrc),file=sys.stderr,end='')
                     continue
 
-            if image["width"] < 200 and image["height"] < 200 and image["width"]<(image["height"]*2):
+            if image["width"] < 250 and image["height"] < 250 and image["width"]<(image["height"]*2):
                 img = PIL.Image.open("./img/roll20/{}/asset{}{}".format(book["id"],image["id"],imgext))
                 custom_config = r'--psm 8 --dpi 70 -l script/Latin'
                 markerstr = pytesseract.image_to_string(img, config=custom_config).rstrip()
                 if markerstr:
                     markerref = markerSearch(map["name"],markerstr)
-                    if not markerref and img.width>30 and img.height>30:
-                        markerstr = pytesseract.image_to_string(img.crop((10,10,img.width-20,img.height-20)), config=custom_config).rstrip()
+                    if not markerref:
+                        markerstr = pytesseract.image_to_string(img.crop((img.width*.1,img.height*.1,img.width*.8,img.height*.8)), config=custom_config).rstrip()
+                        if markerstr.startswith('Yi'):
+                            markerstr = 'Y1'+markerstr[2:]
                         markerref = markerSearch(map["name"],markerstr)
-                if markerref:
-                    marker = ET.SubElement(mapentry,'marker')
-                    ET.SubElement(marker,'name').text = markerref["name"]
-                    ET.SubElement(marker,'color').text = '#ff0000'
-                    ET.SubElement(marker,'shape').text = 'marker'
-                    ET.SubElement(marker,'size').text = 'medium'
-                    ET.SubElement(marker,'hidden').text = 'YES'
-                    ET.SubElement(marker,'locked').text = 'YES'
-                    ET.SubElement(marker,'x').text = str(round(image["left"]*map["rescale"]))
-                    ET.SubElement(marker,'y').text = str(round(image["top"]*map["rescale"]))
-                    ET.SubElement(marker,'content',{ 'ref': markerref["ref"] })
+                    if markerref:
+                        marker = ET.SubElement(mapentry,'marker')
+                        ET.SubElement(marker,'name').text = markerref["name"]
+                        ET.SubElement(marker,'color').text = '#ff0000'
+                        ET.SubElement(marker,'shape').text = 'circle'
+                        ET.SubElement(marker,'size').text = 'medium' if map['width'] <= 2000 else 'large' if map['width'] <= 3000 else 'huge'
+
+                        ET.SubElement(marker,'hidden').text = 'YES'
+                        ET.SubElement(marker,'locked').text = 'YES'
+                        ET.SubElement(marker,'x').text = str(round(image["left"]*map["rescale"]))
+                        ET.SubElement(marker,'y').text = str(round(image["top"]*map["rescale"]))
+                        ET.SubElement(marker,'content',{ 'ref': markerref["ref"] })
 
             shutil.copy("./img/roll20/{}/asset{}{}".format(book["id"],image["id"],imgext),os.path.join(tempdir,"asset{}{}".format(image["id"],imgext)))
     if 'tiles' in map:
@@ -1039,30 +1065,39 @@ def createMap(map,mapgroup):
             asset = ET.SubElement(tile,'asset')
             ET.SubElement(asset,'name').text = os.path.splitext(os.path.basename(image["img"]))[0]
             ET.SubElement(asset,'type').text = "image"
-            ET.SubElement(asset,'resource').text = mapslug+"_"+os.path.basename(image["img"])
-            shutil.copy("./data/"+image["img"],os.path.join(tempdir,mapslug+"_"+os.path.basename(image["img"])))
+            imgext = os.path.splitext(os.path.basename(image["img"]))[1]
+            if imgext == ".webp":
+                ET.SubElement(asset,'resource').text = mapslug+"_"+os.path.splitext(os.path.basename(image["img"]))[0]+".png"
+                PIL.Image.open("./data/"+image["img"]).save(os.path.join(tempdir,mapslug+"_"+os.path.splitext(os.path.basename(image["img"]))[0]+".png"))
+            else:
+                ET.SubElement(asset,'resource').text = mapslug+"_"+os.path.basename(image["img"])
+                shutil.copy("./data/"+image["img"],os.path.join(tempdir,mapslug+"_"+os.path.basename(image["img"])))
 
-            if image["width"] < 200 and image["height"] < 200 and image["width"]<(image["height"]*2):
+            if image["width"] < 250 and image["height"] < 250 and image["width"]<(image["height"]*2):
                 img = PIL.Image.open("./data/"+image["img"])
                 custom_config = r'--psm 8 --dpi 70 -l script/Latin'
                 markerstr = pytesseract.image_to_string(img, config=custom_config).rstrip()
                 if markerstr:
                     markerref = markerSearch(map["name"],markerstr)
-                    if not markerref and img.width > 30 and img.height > 30:
-                        markerstr = pytesseract.image_to_string(img.crop((10,10,img.width-20,img.height-20)), config=custom_config).rstrip()
+                    if not markerref:
+                        markerstr = pytesseract.image_to_string(img.crop((img.width*.1,img.height*.1,img.width*.8,img.height*.8)), config=custom_config).rstrip()
+                        if markerstr.startswith('Yi'):
+                            markerstr = 'Y1'+markerstr[2:]
                         markerref = markerSearch(map["name"],markerstr)
+                        if markerstr.startswith('Yi'):
+                            print("Searching for",markerstr,markerref)
+                    if markerref:
+                        marker = ET.SubElement(mapentry,'marker')
+                        ET.SubElement(marker,'name').text = markerref["name"]
+                        ET.SubElement(marker,'color').text = '#ff0000'
+                        ET.SubElement(marker,'shape').text = 'circle'
+                        ET.SubElement(marker,'size').text = 'medium' if map['width'] <= 2000 else 'large' if map['width'] <= 3000 else 'huge'
 
-                if markerref:
-                    marker = ET.SubElement(mapentry,'marker')
-                    ET.SubElement(marker,'name').text = markerref["name"]
-                    ET.SubElement(marker,'color').text = '#ff0000'
-                    ET.SubElement(marker,'shape').text = 'marker'
-                    ET.SubElement(marker,'size').text = 'medium'
-                    ET.SubElement(marker,'hidden').text = 'YES'
-                    ET.SubElement(marker,'locked').text = 'YES'
-                    ET.SubElement(marker,'x').text = str(round((image["x"]-map["offsetX"]+(image["width"]*image["scale"]/2))*map["rescale"]))
-                    ET.SubElement(marker,'y').text = str(round((image["y"]-map["offsetY"]+(image["height"]*image["scale"]/2))*map["rescale"]))
-                    ET.SubElement(marker,'content',{ 'ref': markerref["ref"] })
+                        ET.SubElement(marker,'hidden').text = 'YES'
+                        ET.SubElement(marker,'locked').text = 'YES'
+                        ET.SubElement(marker,'x').text = str(round((image["x"]-map["offsetX"]+(image["width"]*image["scale"]/2))*map["rescale"]))
+                        ET.SubElement(marker,'y').text = str(round((image["y"]-map["offsetY"]+(image["height"]*image["scale"]/2))*map["rescale"]))
+                        ET.SubElement(marker,'content',{ 'ref': markerref["ref"] })
     return mapslug
 
 bookfound = False
