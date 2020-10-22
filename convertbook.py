@@ -19,7 +19,8 @@ import urllib.parse
 import urllib.request
 import math
 import pytesseract
-import PIL
+import PIL.Image
+import PIL.ImageOps
 
 # Argument Parser
 parser = argparse.ArgumentParser(
@@ -38,6 +39,13 @@ parser.add_argument(
     const=True,
     default=False,
     help="verbose output (default: false)")
+parser.add_argument(
+    '-m',
+    dest="manualbreak",
+    action='store_const',
+    const=True,
+    default=False,
+    help="manual breakout of area pages (default: false)")
 parser.add_argument(
     '-o',
     dest="output",
@@ -60,7 +68,90 @@ nsuuid = uuid.UUID("17f0f0ec-e658-4b3f-911a-7c585a6ec519")
 numbers = ['zero','one','two','three','four']
 stats = {"str":"Strength","dex":"Dexterity","con":"Constitution","int":"Intelligence","wis":"Wisdom","cha":"Charisma"}
 
-def fixTags(s,d=None,p=None,noencounter=False):
+def trim(im):
+    im = im.convert('L').point(lambda x : 255 if x > 128 else 0,mode='1')
+    for x in range(im.width):
+        for y in range(im.height):
+            pix = im.getpixel((x,y))
+            if pix == 255:
+                im.putpixel((x,y),0)
+            else:
+                break
+    for x in range(im.width-1,0,-1):
+        for y in range(im.height-1,0,-1):
+            pix = im.getpixel((x,y))
+            if pix == 255:
+                im.putpixel((x,y),0)
+            else:
+                break
+    im = im.convert('L').point(lambda x : 255 if x > 200 else 0,mode='1')
+    for x in range(im.width):
+        for y in range(im.height):
+            pix = im.getpixel((x,y))
+            if pix == 0:
+                im.putpixel((x,y),255)
+            else:
+                break
+    for x in range(im.width-1,0,-1):
+        for y in range(im.height-1,0,-1):
+            pix = im.getpixel((x,y))
+            if pix == 0:
+                im.putpixel((x,y),255)
+            else:
+                break
+    x1 = 0
+    x2 = 0
+    y1 = 0
+    y2 = 0
+    for x in range(im.width):
+        ok = True
+        for y in range(im.height):
+            if im.getpixel((x,y)) < (255):
+                ok = False
+                break
+        if ok:
+            x1 = x
+        else:
+            break
+    for y in range(im.height):
+        ok = True
+        for x in range(im.width):
+            if im.getpixel((x,y)) < (255):
+                ok = False
+                break
+        if ok:
+            y1 = y
+        else:
+            break
+    for x in range(im.width,0,-1):
+        ok = True
+        for y in range(im.height):
+            if im.getpixel((x-1,y)) < (255):
+                ok = False
+                break
+        if ok:
+            x2 = x
+        else:
+            break
+    wait = True
+    for y in range(y1+1,im.height):
+        ok = True
+        for x in range(im.width):
+            if im.getpixel((x,y)) < (255):
+                ok = False
+                break
+        if ok:
+            y2 = y
+            wait = False
+        if not wait:
+            break
+    if x1 < x2 and y1 < y2:
+        im = PIL.ImageOps.expand(im.crop((x1,y1,x2,y2)),10,255)
+        return im.resize((round(im.width*(70/im.height)),round(im.height*(70/im.height))))
+    else:
+        return im
+
+def fixTags(s,d=None,p=None,noencounter=False,nodice=False):
     s = re.sub(r'{@([bi]) (.*?)}',r'<\1>\2</\1>', s)
     s = re.sub(r'{@link (.*?)\|(.*?)?}', r'<a href="\2">\1</a>', s)
     def dice(m):
@@ -79,8 +170,9 @@ def fixTags(s,d=None,p=None,noencounter=False):
             return m.group(0)
         else:
             return "{{@dice {}}}".format(m.group(2))
-    s = re.sub(r'(<a [^>]*>|{@[^}]*)?([0-9]*[dD][0-9]+( *[+-] *([0-9]*[dD][0-9]+( *[+-] *[0-9]+)?|[0-9]+))?)', dicepre, s)
-    s = re.sub(r'{@dice (.*?)(?:\|(.*?))?}', dice, s)
+    if not nodice:
+        s = re.sub(r'(<a [^>]*>|{@[^}]*)?([0-9]*[dD][0-9]+( *[+-] *([0-9]*[dD][0-9]+( *[+-] *[0-9]+)?|[0-9]+))?)', dicepre, s)
+        s = re.sub(r'{@dice (.*?)(?:\|(.*?))?}', dice, s)
     if args.adventure and d and re.search(r'{@creature (.*?)(\|(.*?))?(\|(.*?))?}', s) and not re.match(r'^{@creature (.*?)(\|(.*?))?(\|(.*?))?}$',s) and not noencounter:
         s2 = alpha2digit(s,"en")
         encounterbaseslug = d['currentslug'] + "-encounter"
@@ -223,6 +315,8 @@ def idSearch(idno):
                                 break;
                     if newslug:
                         break
+            if args.manualbreak and 'name' in sec and re.match(r'^[A-Za-z]*?[0-9,-]+[A-Za-z]?. ',sec['name']):
+                pageslug = slugify(sec['name'])
             if 'id' in sec and sec["id"] == idno:
                 return("/page/{}#{}".format(pageslug,idno))
             elif 'entries' in sec:
@@ -237,6 +331,18 @@ def idSearch(idno):
     return searchSection(data['data'])
 
 def markerSearch(page,marker):
+    if len(marker) > 1:
+        if marker[0] == '0':
+            marker = 'O'+marker[1:]
+        if page == "Island of Solstice":
+            marker = 'I'+marker[1:]
+        if page == "Holed Up":
+            marker = 'L'+marker[1:]
+        if re.match(r'^[A-Za-z]i$',marker):
+            marker = marker[:1]+'1'
+    if marker.startswith('Yi'):
+        marker = 'Y1'+marker[2:]
+
     def searchSection(sec,pageslug = None,issec = False):
         if type(sec) == dict:
             if 'name' in sec:
@@ -246,44 +352,89 @@ def markerSearch(page,marker):
                         sectitle = "{} {}: {}".format(bookref["contents"][i]['ordinal']['type'].title(),bookref["contents"][i]['ordinal']['identifier'],bookref["contents"][i]['name'])
                     else:
                         sectitle = "{}".format(bookref["contents"][i]['name'])
-                    if re.match('(([Cc]h|[Aa]p).*: )?{}'.format(sec["name"]),sectitle):
+                    if re.match('(([Cc]h|[Aa]p).*: )?{}'.format(re.escape(sec["name"])),sectitle):
                         if re.match(r'((([Cc]h|[Aa]p).*:|The|A[n]?) )?{}'.format(page),sec["name"]):
                             issec = True
                         else:
-
                             issec = False
                         pageslug = slugify(sectitle)
                         newslug = True
                     if 'headers' in bookref["contents"][i]:
+                        headermatch = False
                         for header in bookref["contents"][i]['headers']:
                             if type(header) == dict and header['header'] == sec["name"]:
                                 if re.match(r'((The|A[n]?) )?{}'.format(re.escape(page)),header['header']) or \
-                                 re.match(r'((The|A[n]?) )?{}'.format(re.escape(page)),sectitle):
+                                        re.match(r'((The|A[n]?) )?{}'.format(re.escape(page)),sectitle) or \
+                                        headermatch:
                                     issec = True
                                 pageslug = slugify(header['header'])
                                 newslug = True
                                 break;
-                            elif str(header) == sec["name"]:
+                            elif type(header) == str and str(header) == sec["name"]:
                                 if re.match(r'((The|A[n]?) )?{}'.format(re.escape(page)),header) or \
-                                 re.match(r'((The|A[n]?) )?{}'.format(re.escape(page)),sectitle):
+                                        re.match(r'((The|A[n]?) )?{}'.format(re.escape(page)),sectitle):
                                     issec = True
                                 pageslug = slugify(header)
                                 newslug = True
                                 break;
+                            elif type(header) == str and re.match(r'((The|A[n]?) )?{}'.format(re.escape(page)),header):
+                                headermatch = True
+                            elif type(header) == str and "areas" not in header.lower():
+                                headermatch = False
                     if newslug:
                         break
-
-            if issec and 'name' in sec and re.match(r'^{}\.'.format(re.escape(marker)),sec["name"]):
+            if 'name' in sec and re.match(r'{}. {}'.format(re.escape(marker),re.escape(page)),sec['name']):
+                issec = True
+            if args.manualbreak and 'name' in sec and re.match(r'^[A-Za-z]*?[0-9,-]+[A-Za-z]?. ',sec['name']):
+                pageslug = slugify(sec['name'])
+            #if 'name' in sec and re.match(r'^{}\.'.format(re.escape(marker)),sec["name"],re.IGNORECASE):
+            #    print(marker,page,sec['name'],issec)
+            if issec and 'name' in sec and re.match(r'^{}\.'.format(re.escape(marker)),sec["name"],re.IGNORECASE):
+                label = sec["name"].split('.',2)[0] if marker.lower() == sec["name"].split('.',2)[0].lower() else marker.upper() if sec["name"].split('.',2)[0].isupper() else marker.lower()
                 if 'id' in sec:
-                    return({"name": sec["name"],"ref": "/page/{}#{}".format(pageslug,sec['id'])})
+                    return({"name": sec["name"],"label": label,"ref": "/page/{}#{}".format(pageslug,sec['id'])})
                 else:
-                    return({"name": sec["name"],"ref": "/page/{}".format(pageslug)})
+                    return({"name": sec["name"],"label": label,"ref": "/page/{}".format(pageslug)})
+            elif issec and 'name' in sec and re.match(r'^[0-9][a-zA-Z]$',re.escape(marker)) and \
+                    re.match(r'{}(., )*?{}(, .)*?\.'.format(re.escape(marker[0]),re.escape(marker[1])),sec["name"],re.IGNORECASE):
+                label = sec["name"].split('.',2)[0] if marker.lower() == sec["name"].split('.',2)[0].lower() else marker.upper() if sec["name"].split('.',2)[0].isupper() else marker.lower()
+                if 'id' in sec:
+                    return({"name": sec["name"],"label": label,"ref": "/page/{}#{}".format(pageslug,sec['id'])})
+                else:
+                    return({"name": sec["name"],"label": label,"ref": "/page/{}".format(pageslug)})    
+            elif issec and 'name' in sec and \
+                    re.match(r'([a-z0-9]+[-]{0}|{0}[-][a-z0-9]+)\.'.format(re.escape(marker)),sec["name"],re.IGNORECASE):
+                label = sec["name"].split('.',2)[0] if marker.lower() == sec["name"].split('.',2)[0].lower() else marker.upper() if sec["name"].split('.',2)[0].isupper() else marker.lower()
+                if 'id' in sec:
+                    return({"name": sec["name"],"label": label,"ref": "/page/{}#{}".format(pageslug,sec['id'])})
+                else:
+                    return({"name": sec["name"],"label": label,"ref": "/page/{}".format(pageslug)})    
+            elif issec and 'name' in sec and \
+                    re.match(r'(.{{{0}}}, )*?{1}(, .{{{0}}})*?\.'.format(len(marker),re.escape(marker)),sec["name"],re.IGNORECASE):
+                label = sec["name"].split('.',2)[0] if marker.lower() == sec["name"].split('.',2)[0].lower() else marker.upper() if sec["name"].split('.',2)[0].isupper() else marker.lower()
+                if 'id' in sec:
+                    return({"name": sec["name"],"label": label,"ref": "/page/{}#{}".format(pageslug,sec['id'])})
+                else:
+                    return({"name": sec["name"],"label": label,"ref": "/page/{}".format(pageslug)})    
             elif 'entries' in sec:
                 if 'name' in sec and re.match(r'((The|A[n]?) )?{}'.format(re.escape(page)),sec["name"]):
                     issec = True
                 return searchSection(sec["entries"],pageslug,issec)
         elif type(sec) == list:
+            if args.manualbreak:
+                subsection = False
             for item in sec:
+                if args.manualbreak and type(item) == dict and 'name' in item:
+                    if re.match(r'((The|A[n]?) )?{}'.format(re.escape(page)),item['name']):
+                        subsection = True
+                    elif args.manualbreak and subsection and re.match(r'^[A-Za-z]*?[0-9,-]+[A-Za-z]?. ',item['name']):
+                        subsection = True
+                    #else:
+                    #    subsection = False
+                    if subsection:
+                        path = searchSection(item,pageslug,subsection)
+                        if path:
+                            return path
                 path = searchSection(item,pageslug,issec)
                 if path:
                     return path
@@ -301,7 +452,7 @@ def pageSearch(page):
                         sectitle = "{} {}: {}".format(bookref["contents"][i]['ordinal']['type'].title(),bookref["contents"][i]['ordinal']['identifier'],bookref["contents"][i]['name'])
                     else:
                         sectitle = "{}".format(bookref["contents"][i]['name'])
-                    if re.match('(([Cc]h|[Aa]p).*: )?{}'.format(sec["name"]),sectitle):
+                    if re.match('(([Cc]h|[Aa]p).*: )?{}'.format(re.escape(sec["name"])),sectitle):
                         pageslug = slugify(sectitle)
                         newslug = True
                     if 'headers' in bookref["contents"][i]:
@@ -316,7 +467,7 @@ def pageSearch(page):
                                 break;
                     if newslug:
                         break
-            if 'name' in sec and re.match(r'((([Cc]h|[Aa]p).*:|The|A[n]?) )?{}'.format(page),sec["name"]):
+            if 'name' in sec and re.match(r'((([Cc]h|[Aa]p).*:|The|A[n]?) )?{}'.format(re.escape(page)),sec["name"]):
                 if 'id' in sec:
                     return("/page/{}#{}".format(pageslug,sec['id']))
                 else:
@@ -342,7 +493,7 @@ def addLinkToMap(page,mapslug):
                         sectitle = "{} {}: {}".format(bookref["contents"][i]['ordinal']['type'].title(),bookref["contents"][i]['ordinal']['identifier'],bookref["contents"][i]['name'])
                     else:
                         sectitle = "{}".format(bookref["contents"][i]['name'])
-                    if re.match('(([Cc]h|[Aa]p).*: )?{}'.format(sec["name"]),sectitle):
+                    if re.match('(([Cc]h|[Aa]p).*: )?{}'.format(re.escape(sec["name"])),sectitle):
                         pageslug = slugify(sectitle)
                         newslug = True
                     if 'headers' in bookref["contents"][i]:
@@ -357,10 +508,10 @@ def addLinkToMap(page,mapslug):
                                 break;
                     if newslug:
                         break
-            if 'name' in sec and re.match(r'((The|A[n]?) )?{}'.format(page),sec["name"]) and 'id' in sec:
+            if 'name' in sec and re.match(r'((([Cc]h|[Aa]p).*:|The|A[n]?) )?{}'.format(re.escape(page)),sec["name"]) and 'id' in sec:
                 content = module.find("./page[@id='{}']/content".format(str(uuid.uuid5(bookuuid,sec["id"]))))
                 if content != None:
-                    content.text += '\n<a href="/map/{}">Map: {}</a>'.format(mapslug,page)
+                    content.text = content.text.rstrip()+'\n<a href="/map/{}">Map: {}</a>\n'.format(mapslug,page)
             elif 'entries' in sec:
                 return searchSection(sec["entries"],pageslug)
         elif type(sec) == list:
@@ -381,25 +532,32 @@ def processSection(order,d,mod,parentuuid=None,parentname=None):
         d['id'] = str(order)+d['name']
     sectionuuid = str(uuid.uuid5(bookuuid,d["id"]))
     d['currentpage'] = sectionuuid
+    if book['id'].lower() == 'idrotf' and not parentuuid and d['name'] in [
+            'Bremen','Bryn Shander','Caer-Dineval','Caer-Konig','Dougan\'s Hole',
+            'Easthaven','Good Mead','Lonelywood','Targos','Termalaine'
+            ]:
+        parentuuid = str(uuid.uuid5(bookuuid,'040'))
+        parentname = "Chapter 1: Ten-Towns"
+        order += 3
     if parentuuid:
         page = ET.SubElement(module, 'page', { 'id': sectionuuid, 'parent': parentuuid, 'sort': str(order)})
     else:
         page = ET.SubElement(module, 'page', { 'id': sectionuuid, 'sort': str(order) })
-    titlem = re.match(r'(Ch(\.|apter)|App(\.|endix)) [0-9A-B]+?:[ ]?(.*)', fixTags(d['name']))
+    titlem = re.match(r'(Ch(\.|apter)|App(\.|endix)) [0-9A-B]+?:[ ]?(.*)', fixTags(d['name'],None,None,False,True))
     title = d['name']
     if not titlem and d['type'] == "section" and not parentuuid:
         for sec in bookref["contents"]:
             if sec['name'] == d['name'] and 'ordinal' in sec:
                 title = "{} {}: {}".format(sec['ordinal']['type'].title(),sec['ordinal']['identifier'],sec['name'])
     name = ET.SubElement(page,'name')
-    name.text = fixTags(title)
+    name.text = fixTags(title,None,None,False,True)
     d['pagetitle'] = title
     content = ET.SubElement(page,'content')
     d['content'] = content
     if parentuuid:
-        content.text = "<h2 id=\"{}\">{}</h2>\n".format(d['id'],fixTags(d['name']))
+        content.text = "<h2 id=\"{}\">{}</h2>\n".format(d['id'],fixTags(d['name'],None,None,False,True))
     else:
-        content.text = "<h1 id=\"{}\">{}</h1>\n".format(d['id'],fixTags(d['name']))
+        content.text = "<h1 id=\"{}\">{}</h1>\n".format(d['id'],fixTags(d['name'],None,None,False,True))
     slug = ET.SubElement(page,'slug')
     sectionslug = slugify(title)
     if sectionslug in slugs:
@@ -424,25 +582,43 @@ def processSection(order,d,mod,parentuuid=None,parentname=None):
                     if titlematch or chaptermatches:
                         if 'headers' in sec:
                             for header in sec['headers']:
-                                if (type(header) == dict and header["header"] == fixTags(e['name'])) or header == e['name']:
+                                if (type(header) == dict and header["header"] == fixTags(e['name'],None,None,False,True)) or header == e['name']:
                                     issubsection = True
                 if issubsection:
                     suborder += 1
                     subpage = processSection(suborder,e,mod,sectionuuid,title)
-                    d['content'].text += "\n<a href=\"/page/{}\">{}</a>\n<br>\n".format(subpage,fixTags(e['name']))
+                    d['content'].text += "\n<a href=\"/page/{}\">{}</a>\n<br>\n".format(subpage,fixTags(e['name'],None,None,False,True))
                     d['subsection'] = str(uuid.uuid5(bookuuid,e["id"]))
-                    d['subsectionname'] = fixTags(e['name'])
+                    d['subsectionname'] = fixTags(e['name'],None,None,False,True)
                     content = mod.find("./page[@id='{}']/content".format(d['subsection']))
+                elif args.manualbreak and re.match(r'^[A-Za-z]*?[0-9,-]+[A-Za-z]?\. ',e['name']):
+                    if 'subsection' not in d:
+                        d['subsection'] = sectionuuid
+                    if 'subsectionname' not in d:
+                        d['subsectionname'] = title
+                    issubsection = True
+                    suborder += 1
+                    subpage = processSection(suborder,e,mod,d['subsection'],d['subsectionname'])
+                    #mod.find("./page[@id='{}']/content".format(d['subsection'])).text += "\n<a href=\"/page/{}\">{}</a>\n<br>\n".format(subpage,fixTags(e['name'],None,None,False,True))
+                    #d['subsection'] = str(uuid.uuid5(bookuuid,e["id"]))
+                    #d['subsectionname'] = fixTags(e['name'])
+                    content = mod.find("./page[@id='{}']/content".format(d['subsection']))
+                    if content.text.rfind("<br>\nUp: ") > 0:
+                        content.text = content.text[:content.text.rindex("<br>\nUp: ")] + "\n<a href=\"/page/{}\">{}</a>\n<br>\n".format(subpage,fixTags(e['name'],None,None,False,True)) + content.text[content.text.rindex("<br>\nUp: "):]
+                    else:
+                        content.text += "\n<a href=\"/page/{}\">{}</a>\n<br>\n".format(subpage,fixTags(e['name'],None,None,False,True))
+
                 if issubsection:
                     continue
+                else:
+                    content = d['content']
         if content.text.rfind("<br>\nUp: ") > 0:
             content.text = content.text[:content.text.rindex("<br>\nUp: ")] + getEntry(e,d) + content.text[content.text.rindex("<br>\nUp: "):]
         else:
             d['suborder'] = suborder
             content.text += getEntry(e,d)
-
     if parentname:
-        content.text += "<br>\nUp: <a href=\"/page/{}\">{}</a>\n<br>\n".format(slugify(parentname),parentname)
+        d['content'].text += "<br>\nUp: <a href=\"/page/{}\">{}</a>\n<br>\n".format(parentuuid,parentname)
     content.text = content.text.rstrip()
     
     return slugify(sectionslug)
@@ -465,7 +641,7 @@ def getEntry(e,d=None,h=3,noencounter=False):
                     if 'headers' in sec:
                         for header in sec['headers']:
                             suborder += 1
-                            if (type(header) == dict and header["header"] == fixTags(e['name'])) or header == e['name']:
+                            if (type(header) == dict and header["header"] == fixTags(e['name'],None,None,False,True)) or header == e['name']:
                                 issubsection = True
                                 break
                 elif 'headers' in sec:
@@ -481,15 +657,15 @@ def getEntry(e,d=None,h=3,noencounter=False):
                             break
                 if issubsection:
                     break
+            if args.manualbreak and not issubsection and re.match(r'^[A-Za-z]*?[0-9,-]+[A-Za-z]?. ',e['name']):
+                issubsection = True
             if issubsection:
                 subpage = processSection(suborder,e,module,d['currentpage'],d['pagetitle'])
-                content += "\n<a href=\"/page/{}\">{}</a>\n<br>\n".format(subpage,fixTags(e['name']))
+                content += "\n<a href=\"/page/{}\">{}</a>\n<br>\n".format(subpage,fixTags(e['name'],None,None,False,True))
                 return content
                 #d['subsection'] = str(uuid.uuid5(bookuuid,e["id"]))
                 #d['subsectionname'] = fixTags(e['name'])
                 #content = module.find("./page[@id='{}']/content".format(d['subsection'])).text
-            if issubsection:
-                return ""
         if 'source' in e and e['source'].lower() != args.book:
             return ""
         if 'name' in e:
@@ -724,6 +900,10 @@ def createMap(map,mapgroup):
 
     if map["name"] == "Start":
         return
+    if map["name"] == "Upper Courtyard - Skyreach Caste":
+        map["name"] = "Upper Courtyard - Skyreach Castle"
+    if map["name"] == "Sacred Stone Monastary":
+        map["name"] = "Sacred Stone Monastery"
     mapbaseslug = slugify(map['name'])
     mapslug = mapbaseslug + str(len([i for i in slugs if mapbaseslug in i]))
     mapuuid = uuid.uuid5(bookuuid,mapslug)
@@ -815,7 +995,7 @@ def createMap(map,mapgroup):
         svg = ET.Element('svg', { 'id': svguuid, 'xmlns': 'http://www.w3.org/2000/svg', 'version': '1.0', 'viewBox': "0 0 {} {}".format(map['width'],map['height']) } )
         for i in range(len(map["walls"])):
             p = map["walls"][i]
-            print("\rwalls [{}/{}]".format(i,len(map["walls"])),file=sys.stderr,end='')
+            print("\rwall {}".format(i),file=sys.stderr,end='')
             if 'path' in p:
                 rawpath = json.loads(p['path'])
                 path = ""
@@ -960,19 +1140,128 @@ def createMap(map,mapgroup):
         tree = ET.ElementTree(utils.indent(svg, 1))
         tree.write(os.path.join(tempdir,mapslug + ".svg"), xml_declaration=False, short_empty_elements=False, encoding='utf-8')
 
-    pageref = pageSearch(map["name"])
+    maptitle = map["name"]
+    mapname = map["name"]
+    floor = ''
+    if ' - ' in map["name"]:
+        floor = map["name"].split(' - ',2)[0]
+        if re.match(r'(ground|first)',floor.lower()):
+            floor = '1'
+        elif re.match(r'(second)',floor.lower()):
+            floor = '2'
+        elif re.match(r'(third)',floor.lower()):
+            floor = '3'
+        else:
+            floor = ''
+    mapexceptions = {
+        'hotdq': [
+            { 'name': "Dungeon  - Castle Naerytar",
+                'maptitle': "Beneath the Castle" },
+            ],
+        'rot': [
+            { 'name': "Well of Dragons Caldera",
+                'maptitle': "Well of Dragons" },
+            { 'name': "Well of Dragons Temple",
+                'maptitle': "Tiamat's Temple" },
+            { 'name': "Tomb of Diderius",
+                'mapname': "Chapters 11 and 12: Death to the Wyrmspeakers" },
+            { 'name': "Arauthator's Lair",
+                'mapname': "Chapter 10: The Sea of Moving Ice" }
+            ],
+        'pota': [
+            { 'name': "Shrine of the Tender Oath",
+                'mapname': "Vale of Dancing Waters" },
+            { 'name': "Scarlet Moon Hall Tower",
+                'maptitle': "Scarlet Moon Hall" }
+            ],
+        'cos': [
+            ],
+        'skt': [
+            ],
+        'oota': [
+            { 'name': "The Hook Horror Lair",
+                'maptitle': 'Hook Horror Hunt' },
+            { 'name': "Whorlstone 7 & 8: Gray Ghost Garden & Gray Alchemist",
+                'mapname': 'Whorlstone Tunnels' },
+            { 'name': "The Lost Tomb",
+                'maptitle': 'Lost Tomb of Khaem' },
+            ],
+        'idrotf': [
+            { 'name': "Caer Dineval",
+                'maptitle': 'Caer-Dineval' },
+            { 'name': "Caer Konig",
+                'maptitle': 'Caer-Konig' },
+            { 'name': "Keep at Caer-Dineval",
+                'maptitle': 'Black Swords' },
+            { 'name': "Duergar Outpost",
+                'maptitle': 'The Unseen' },
+            { 'name': "Frost Giant Ice Lodge",
+                'maptitle': 'Holed Up' },
+            { 'name': "Cauldron Caves",
+                'mapname': "Toil and Trouble" },
+            { 'name': "Verbeeg Lair",
+                'mapname': "The Mead Must Flow" },
+            { 'name': "Kelvin's Cairn",
+                'mapname': "Mountain Climb" },
+            { 'name': "Gem Mine",
+                'mapname': "A Beautiful Mine" }
+            ]
+        }
+    if book["id"].lower() in mapexceptions.keys():
+        for ex in mapexceptions[book['id'].lower()]:
+            if ex['name'] == map['name']:
+                maptitle = ex['maptitle'] if 'maptitle' in ex else map["name"]
+                mapname = ex['mapname'] if 'mapname' in ex else maptitle
+    pageref = pageSearch(maptitle)
     if pageref:
         marker = ET.SubElement(mapentry,'marker')
-        ET.SubElement(marker,'name').text = map["name"]
+        ET.SubElement(marker,'name').text = maptitle
+        ET.SubElement(marker,'label').text = "Info"
         ET.SubElement(marker,'color').text = '#ff0000'
         ET.SubElement(marker,'shape').text = 'marker'
-        ET.SubElement(marker,'size').text = 'medium' if map['width'] <= 2000 else 'large' if map['width'] <= 3000 else 'huge'
+        ET.SubElement(marker,'size').text = 'medium' if map['scale'] < 1.1 else 'large' if map['scale'] < 1.2 else 'huge'
         ET.SubElement(marker,'hidden').text = 'YES'
         ET.SubElement(marker,'locked').text = 'YES'
         ET.SubElement(marker,'x').text = str(round(map["width"]*.1))
         ET.SubElement(marker,'y').text = str(round(map["height"]*.1))
         ET.SubElement(marker,'content',{ 'ref': pageref })
         addLinkToMap(map["name"],mapslug)
+    elif ' - ' in mapname:
+        pageref = pageSearch(maptitle.split(' - ',2)[1])
+        if pageref:
+            if mapname == maptitle:
+                mapname = maptitle.split(' - ',2)[1]
+            maptitle = maptitle.split(' - ',2)[1]
+            marker = ET.SubElement(mapentry,'marker')
+            ET.SubElement(marker,'name').text = maptitle
+            ET.SubElement(marker,'label').text = "Info"
+            ET.SubElement(marker,'color').text = '#ff0000'
+            ET.SubElement(marker,'shape').text = 'marker'
+            ET.SubElement(marker,'size').text = 'medium' if map['scale'] < 1.1 else 'large' if map['scale'] < 1.2 else 'huge'
+            ET.SubElement(marker,'hidden').text = 'YES'
+            ET.SubElement(marker,'locked').text = 'YES'
+            ET.SubElement(marker,'x').text = str(round(map["width"]*.1))
+            ET.SubElement(marker,'y').text = str(round(map["height"]*.1))
+            ET.SubElement(marker,'content',{ 'ref': pageref })
+            addLinkToMap(map["name"],mapslug)
+        else:
+            pageref = pageSearch(maptitle.split(' - ',2)[0])
+            if pageref:
+                if mapname == maptitle:
+                    mapname = maptitle.split(' - ',2)[0]
+                maptitle = maptitle.split(' - ',2)[0]
+                marker = ET.SubElement(mapentry,'marker')
+                ET.SubElement(marker,'name').text = maptitle
+                ET.SubElement(marker,'label').text = "Info"
+                ET.SubElement(marker,'color').text = '#ff0000'
+                ET.SubElement(marker,'shape').text = 'marker'
+                ET.SubElement(marker,'size').text = 'medium' if map['scale'] < 1.1 else 'large' if map['scale'] < 1.2 else 'huge'
+                ET.SubElement(marker,'hidden').text = 'YES'
+                ET.SubElement(marker,'locked').text = 'YES'
+                ET.SubElement(marker,'x').text = str(round(map["width"]*.1))
+                ET.SubElement(marker,'y').text = str(round(map["height"]*.1))
+                ET.SubElement(marker,'content',{ 'ref': pageref })
+                addLinkToMap(map["name"],mapslug)
 
     if 'graphics' in map:
         for i in range(len(map["graphics"])):
@@ -1026,18 +1315,18 @@ def createMap(map,mapgroup):
                 custom_config = r'--psm 8 --dpi 70 -l script/Latin'
                 markerstr = pytesseract.image_to_string(img, config=custom_config).rstrip()
                 if markerstr:
-                    markerref = markerSearch(map["name"],markerstr)
+                    markerref = markerSearch(mapname,markerstr)
                     if not markerref:
                         markerstr = pytesseract.image_to_string(img.crop((img.width*.1,img.height*.1,img.width*.8,img.height*.8)), config=custom_config).rstrip()
                         if markerstr.startswith('Yi'):
                             markerstr = 'Y1'+markerstr[2:]
-                        markerref = markerSearch(map["name"],markerstr)
+                        markerref = markerSearch(mapname,markerstr)
                     if markerref:
                         marker = ET.SubElement(mapentry,'marker')
                         ET.SubElement(marker,'name').text = markerref["name"]
                         ET.SubElement(marker,'color').text = '#ff0000'
                         ET.SubElement(marker,'shape').text = 'circle'
-                        ET.SubElement(marker,'size').text = 'medium' if map['width'] <= 2000 else 'large' if map['width'] <= 3000 else 'huge'
+                        ET.SubElement(marker,'size').text = 'medium' if map['scale'] < 1.1 else 'large' if map['scale'] < 1.2 else 'huge'
 
                         ET.SubElement(marker,'hidden').text = 'YES'
                         ET.SubElement(marker,'locked').text = 'YES'
@@ -1049,7 +1338,7 @@ def createMap(map,mapgroup):
     if 'tiles' in map:
         for i in range(len(map["tiles"])):
             image = map["tiles"][i]
-            print("\rassets [{}/{}]".format(i,len(map["tiles"])),file=sys.stderr,end='')
+            print("\rtiles [{}/{}]".format(i,len(map["tiles"])),file=sys.stderr,end='')
             tile = ET.SubElement(mapentry,'tile')
             ET.SubElement(tile,'x').text = str(round((image["x"]-map["offsetX"]+(image["width"]*image["scale"]/2))*map["rescale"]))
             ET.SubElement(tile,'y').text = str(round((image["y"]-map["offsetY"]+(image["height"]*image["scale"]/2))*map["rescale"]))
@@ -1066,38 +1355,83 @@ def createMap(map,mapgroup):
             ET.SubElement(asset,'name').text = os.path.splitext(os.path.basename(image["img"]))[0]
             ET.SubElement(asset,'type').text = "image"
             imgext = os.path.splitext(os.path.basename(image["img"]))[1]
+            img = PIL.Image.open("./data/"+image["img"])
             if imgext == ".webp":
                 ET.SubElement(asset,'resource').text = mapslug+"_"+os.path.splitext(os.path.basename(image["img"]))[0]+".png"
-                PIL.Image.open("./data/"+image["img"]).save(os.path.join(tempdir,mapslug+"_"+os.path.splitext(os.path.basename(image["img"]))[0]+".png"))
+                if img.width > 4096 or img.height > 4096:
+                    scale = 4095/img.width if img.width>=img.height else 4095/img.height
+                    img = img.resize((round(img.width*scale),round(img.height*scale)))
+                img.save(os.path.join(tempdir,mapslug+"_"+os.path.splitext(os.path.basename(image["img"]))[0]+".png"))
             else:
                 ET.SubElement(asset,'resource').text = mapslug+"_"+os.path.basename(image["img"])
-                shutil.copy("./data/"+image["img"],os.path.join(tempdir,mapslug+"_"+os.path.basename(image["img"])))
-
-            if image["width"] < 250 and image["height"] < 250 and image["width"]<(image["height"]*2):
-                img = PIL.Image.open("./data/"+image["img"])
+                if img.width > 4096 or img.height > 4096:
+                    scale = 4095/img.width if img.width>=img.height else 4095/img.height
+                    img = img.resize((round(img.width*scale),round(img.height*scale)))
+                    img.save(os.path.join(tempdir,mapslug+"_"+os.path.basename(image["img"])))
+                else:
+                    shutil.copy("./data/"+image["img"],os.path.join(tempdir,mapslug+"_"+os.path.basename(image["img"])))
+            if img.width < 250 and img.height < 250:# and .9 <= image["width"]/image["height"] <= 1.1:
+                #img = PIL.Image.open("./data/"+image["img"])
+                markerref = None
                 custom_config = r'--psm 8 --dpi 70 -l script/Latin'
-                markerstr = pytesseract.image_to_string(img, config=custom_config).rstrip()
+                markerstr = pytesseract.image_to_string(trim(img), config=custom_config).rstrip()
                 if markerstr:
-                    markerref = markerSearch(map["name"],markerstr)
+                    markerref = markerSearch(mapname,markerstr) or (markerSearch(mapname,floor+markerstr) if floor else None) or (markerSearch(mapname.split(":")[1].lstrip(),markerstr) if ":" in mapname else None)
                     if not markerref:
-                        markerstr = pytesseract.image_to_string(img.crop((img.width*.1,img.height*.1,img.width*.8,img.height*.8)), config=custom_config).rstrip()
-                        if markerstr.startswith('Yi'):
-                            markerstr = 'Y1'+markerstr[2:]
-                        markerref = markerSearch(map["name"],markerstr)
-                        if markerstr.startswith('Yi'):
-                            print("Searching for",markerstr,markerref)
-                    if markerref:
-                        marker = ET.SubElement(mapentry,'marker')
-                        ET.SubElement(marker,'name').text = markerref["name"]
-                        ET.SubElement(marker,'color').text = '#ff0000'
-                        ET.SubElement(marker,'shape').text = 'circle'
-                        ET.SubElement(marker,'size').text = 'medium' if map['width'] <= 2000 else 'large' if map['width'] <= 3000 else 'huge'
+                        markerstr = pytesseract.image_to_string(img, config=custom_config).rstrip() or pytesseract.image_to_string(img.crop((img.width*.1,img.height*.1,img.width*.8,img.height*.8)), config=custom_config).rstrip()
+                        if markerstr:
+                            markerref = markerSearch(mapname,markerstr) or (markerSearch(mapname,floor+markerstr) if floor else None) or (markerSearch(mapname.split(":")[1].lstrip(),markerstr) if ":" in mapname else None)
+                if not markerref:
+                    custom_config = r'--psm 10 --dpi 70 -l script/Latin'
+                    markerstr = pytesseract.image_to_string(trim(img), config=custom_config).rstrip()
+                    if markerstr:
+                        markerref = markerSearch(mapname,markerstr) or (markerSearch(mapname,floor+markerstr) if floor else None) or (markerSearch(mapname.split(":")[1].lstrip(),markerstr) if ":" in mapname else None)
+                        if not markerref:
+                            markerstr = pytesseract.image_to_string(img, config=custom_config).rstrip() or pytesseract.image_to_string(img.crop((img.width*.1,img.height*.1,img.width*.8,img.height*.8)), config=custom_config).rstrip()
+                            if markerstr:
+                                markerref = markerSearch(mapname,markerstr) or (markerSearch(mapname,floor+markerstr) if floor else None) or (markerSearch(mapname.split(":")[1].lstrip(),markerstr) if ":" in mapname else None)
+                if not markerref:
+                    custom_config = r'--psm 10 --dpi 70 -l eng'
+                    markerstr = pytesseract.image_to_string(trim(img), config=custom_config).rstrip()
+                    if markerstr:
+                        markerref = markerSearch(mapname,markerstr) or (markerSearch(mapname,floor+markerstr) if floor else None) or (markerSearch(mapname.split(":")[1].lstrip(),markerstr) if ":" in mapname else None)
+                        if not markerref:
+                            markerstr = pytesseract.image_to_string(img, config=custom_config).rstrip() or pytesseract.image_to_string(img.crop((img.width*.1,img.height*.1,img.width*.8,img.height*.8)), config=custom_config).rstrip()
+                            if markerstr:
+                                markerref = markerSearch(mapname,markerstr) or (markerSearch(mapname,floor+markerstr) if floor else None) or (markerSearch(mapname.split(":")[1].lstrip(),markerstr) if ":" in mapname else None)
+#                    if not markerref:
+#                        markerstr = pytesseract.image_to_string(img.crop((img.width*.1,img.height*.1,img.width*.8,img.height*.8)), config=custom_config).rstrip()
+#                        if markerstr == "Oo":
+#                            markerstr = "O"
+#                        if markerstr == "Cc":
+#                            markerstr = "C"
+#                        if markerstr.startswith('Yi'):
+#                            markerstr = 'Y1'+markerstr[2:]
+#                        markerref = markerSearch(mapname,markerstr) or (markerSearch(mapname,floor+markerstr) if floor else None)
+#                        if not markerref:
+#                            if markerstr.startswith('Yi'):
+#                                markerstr = 'Y1'+markerstr[2:]
+#                            markerstr = pytesseract.image_to_string(img.crop((img.width*.05,img.height*.05,img.width*.9,img.height*.9)), config=custom_config).rstrip()
+#                            markerref = markerSearch(mapname,markerstr) or (markerSearch(mapname,floor+markerstr) if floor else None)
+#                            if not markerref:
+#                                markerstr = pytesseract.image_to_string(img.crop((img.width*.075,img.height*.075,img.width*.85,img.height*.85)), config=custom_config).rstrip()
+#                                markerref = markerSearch(mapname,markerstr) or (markerSearch(mapname,floor+markerstr) if floor else None)
+#                            
+                if markerref:
+                    if floor and floor != markerref["label"][0] and floor == markerref["name"][0]:
+                        markerref["label"] = floor+markerref["label"]
+                    marker = ET.SubElement(mapentry,'marker')
+                    ET.SubElement(marker,'name').text = markerref["name"].split('.',2)[1].lstrip()
+                    ET.SubElement(marker,'label').text = markerref["label"]
+                    ET.SubElement(marker,'color').text = '#ff0000'
+                    ET.SubElement(marker,'shape').text = 'circle'
+                    ET.SubElement(marker,'size').text = 'medium' if map['scale'] < 1.1 else 'large' if map['scale'] < 1.2 else 'huge'
 
-                        ET.SubElement(marker,'hidden').text = 'YES'
-                        ET.SubElement(marker,'locked').text = 'YES'
-                        ET.SubElement(marker,'x').text = str(round((image["x"]-map["offsetX"]+(image["width"]*image["scale"]/2))*map["rescale"]))
-                        ET.SubElement(marker,'y').text = str(round((image["y"]-map["offsetY"]+(image["height"]*image["scale"]/2))*map["rescale"]))
-                        ET.SubElement(marker,'content',{ 'ref': markerref["ref"] })
+                    ET.SubElement(marker,'hidden').text = 'YES'
+                    ET.SubElement(marker,'locked').text = 'YES'
+                    ET.SubElement(marker,'x').text = str(round((image["x"]-map["offsetX"]+(image["width"]*image["scale"]/2))*map["rescale"]))
+                    ET.SubElement(marker,'y').text = str(round((image["y"]-map["offsetY"]+(image["height"]*image["scale"]/2))*map["rescale"]))
+                    ET.SubElement(marker,'content',{ 'ref': markerref["ref"] })
     return mapslug
 
 bookfound = False
@@ -1224,6 +1558,21 @@ for book in b[bookkey]:
             description.text += "An adventure for levels {} to {}\nStoryline: {}\n".format(book['level']['start'],book['level']['end'],book['storyline'])
     description.text += "By {}\nPublished {}".format(book['author'],book['published'])
     
+    needmanualbreak = True
+    for section in book['contents']:
+        if 'headers' in section:
+            for header in section['headers']:
+                if type(header) == dict and re.match(r'^[A-Za-z]*?[0-9,-]+[A-Za-z]?. ',header['header']):
+                    needmanualbreak = False
+                    break
+        if not needmanualbreak:
+            break
+    if needmanualbreak:
+        args.manualbreak = True
+        print("This needs a manual breakout",file=sys.stderr)
+
+                    
+
     order = 0
     for d in data['data']:
         if d['type'] == "section":
