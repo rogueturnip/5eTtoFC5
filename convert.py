@@ -450,8 +450,8 @@ for file in args.inputJSON:
                 m['speed'] = "{} ft.".format(m['speed'])
             elif m['vehicleType'] == "SHIP":
                 m['type'] = "vehicle ({} x {})".format(m['dimensions'][0],m['dimensions'][1])
-                m['ac'] = [ m['hull']['ac'] ]
-                m['hp'] = { "special": str(m['hull']['hp']) }
+                m['ac'] = [ m['hull']['ac'] if 'hull' in m else '' ]
+                m['hp'] = { "special": str(m['hull']['hp']) if 'hull' in m else '' }
                 if not 'trait' in m:
                     m['trait'] = []
                 if 'action' not in m:
@@ -564,15 +564,17 @@ for file in args.inputJSON:
                                 "name": "Weapons:",
                                 "type": "entries",
                                 "entries": [
-                                    "<i>{}{}</i>".format(c['name']," ({})".format(c["count"]) if 'count' in c else ""),
-                                    "<i>Armor Class:</i> {}".format(c['ac']),
-                                    "<i>Hit Points:</i> {}{}{}{}".format(
-                                        c['hp'],
-                                        " (damage threshold {})".format(c['dt']) if 'dt' in c else '',
-                                        " each" if 'count' in c and c["count"] > 1 else "",
-                                        "; "+c['hpNote'] if 'hpNote' in c else '')
+                                    "<i>{}{}</i>".format(c['name']," ({})".format(c["count"]) if 'count' in c else "")
                                     ]
                                 }
+                            if 'ac' in c:
+                                trait['entries'].append("<i>Armor Class:</i> {}".format(c['ac']))
+                            if 'hp' in c:
+                                trait['entries'].append("<i>Hit Points:</i> {}{}{}{}".format(
+                                    c['hp'],
+                                    " (damage threshold {})".format(c['dt']) if 'dt' in c else '',
+                                    " each" if 'count' in c and c["count"] > 1 else "",
+                                    "; "+c['hpNote'] if 'hpNote' in c else ''))
                         if 'entries' in c:
                             trait['entries'] += c['entries']
                         m['action'].append(trait)

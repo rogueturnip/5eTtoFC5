@@ -191,17 +191,17 @@ def parseMonster(m, compendium, args):
                     bool)])
 
     statstr = ET.SubElement(monster, 'str')
-    statstr.text = str(m['str'])
+    statstr.text = str(m['str'] if 'str' in m else '-')
     statdex = ET.SubElement(monster, 'dex')
-    statdex.text = str(m['dex'])
+    statdex.text = str(m['dex'] if 'dex' in m else '-')
     statcon = ET.SubElement(monster, 'con')
-    statcon.text = str(m['con'])
+    statcon.text = str(m['con'] if 'con' in m else '-')
     statint = ET.SubElement(monster, 'int')
-    statint.text = str(m['int'])
+    statint.text = str(m['int'] if 'int' in m else '-')
     statwis = ET.SubElement(monster, 'wis')
-    statwis.text = str(m['wis'])
+    statwis.text = str(m['wis'] if 'wis' in m else '-')
     statcha = ET.SubElement(monster, 'cha')
-    statcha.text = str(m['cha'])
+    statcha.text = str(m['cha'] if 'cha' in m else '-')
     if 'isNpc' in m and m['isNpc'] and not args.nohtml:
         npcroll = ET.SubElement(monster, 'role')
         npcroll.text = "ally"
