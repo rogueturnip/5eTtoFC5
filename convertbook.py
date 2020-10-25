@@ -923,6 +923,8 @@ def createMap(map,mapgroup):
             map["img"] = shutil.copy(bg["img"],os.path.join(tempdir,os.path.basename("map-{}{}".format(mapslug,imgext))))
         map["shiftX"] = bg["x"]-map["offsetX"]
         map["shiftY"] = bg["y"]-map["offsetY"]
+        map["width"] = bg["width"]
+        map["height"] = bg["height"]
     map["rescale"] = 1.0
     if map["width"] > 8192 or map["height"] > 8192:
         map["rescale"] = 8192.0/map["width"] if map["width"] >= map["height"] else 8192.0/map["height"]
