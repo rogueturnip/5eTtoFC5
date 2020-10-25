@@ -383,7 +383,7 @@ for file in args.inputJSON:
                 m['name'] += " (Unearthed Arcana)"
             for xmlmon in compendium.findall("./monster[name='{}']".format(re.sub(r'\'','*',m['name']))):
                 if args.verbose or args.showdupe:
-                    print ("{0} in {1} is duplicate entry for {2} from {3}".format(m['name'],utils.getFriendlySource(m['source']),xmlmon.find('name').text,xmlmon.find('source').text))
+                    print ("{0} in {1} is duplicate entry for {2} from {3}".format(m['name'],utils.getFriendlySource(m['source']),xmlmon.find('name').text,xmlmon.find('source').text if xmlmon.find('source') else '--'))
                 mdupe += 1
             if fluff is not None and 'monsterFluff' in fluff:
                 if 'entries' in m:
@@ -550,15 +550,17 @@ for file in args.inputJSON:
                                 "name": "Weapons:",
                                 "type": "entries",
                                 "entries": [
-                                    "{}{}".format(c['name']," ({})".format(c["count"]) if 'count' in c else ""),
-                                    "Armor Class: {}".format(c['ac']),
-                                    "Hit Points: {}{}{}{}".format(
-                                        c['hp'],
-                                        " (damage threshold {})".format(c['dt']) if 'dt' in c else '',
-                                        " each" if 'count' in c and c["count"] > 1 else "",
-                                        "; "+c['hpNote'] if 'hpNote' in c else '')
+                                    "{}{}".format(c['name']," ({})".format(c["count"]) if 'count' in c else "")
                                     ]
                                 }
+                            if 'ac' in c:
+                                trait['entries'].append("Armor Class: {}".format(c['ac']))
+                            if 'hp' in c:
+                                trait['entries'].append("Hit Points: {}{}{}{}".format(
+                                    c['hp'],
+                                    " (damage threshold {})".format(c['dt']) if 'dt' in c else '',
+                                    " each" if 'count' in c and c["count"] > 1 else "",
+                                    "; "+c['hpNote'] if 'hpNote' in c else ''))
                         else:
                             trait = {
                                 "name": "Weapons:",
@@ -615,7 +617,7 @@ for file in args.inputJSON:
                     continue
             for xmlmon in compendium.findall("./spell[name='{}']".format(re.sub(r'\'','*',m['name']))):
                 if args.verbose or args.showdupe:
-                    print ("Found duplicate entry for {} from {}".format(m['name'],xmlmon.find('source').text))
+                    print ("Found duplicate entry for {} from {}".format(m['name'],xmlmon.find('source').text if xmlmon.find('source') else '--'))
                 sdupe += 1
 
             if ignoreError:
@@ -651,7 +653,7 @@ for file in args.inputJSON:
                     continue
             for xmlmon in compendium.findall("./background[name='{}']".format(re.sub(r'\'','*',m['name']))):
                 if args.verbose or args.showdupe:
-                    print ("Found duplicate entry for {} from {}".format(m['name'],xmlmon.find('source').text))
+                    print ("Found duplicate entry for {} from {}".format(m['name'],xmlmon.find('source').text if xmlmon.find('source') else '--'))
                 bdupe += 1
             if fluff is not None and 'backgroundFluff' in fluff:
                 if 'entries' in m:
@@ -932,7 +934,7 @@ for file in args.inputJSON:
 
             for xmlmon in compendium.findall("./item[name='{}']".format(re.sub(r'\'','*',m['name']))):
                 if args.verbose or args.showdupe:
-                    print ("Found duplicate entry for {} from {}".format(m['name'],xmlmon.find('source').text))
+                    print ("Found duplicate entry for {} from {}".format(m['name'],xmlmon.find('source').text if xmlmon.find('source') else '--'))
                 idupe += 1
 
             if ignoreError:
