@@ -54,12 +54,16 @@ def parseItem(m, compendium, args):
             typ.text = 'G'
         if m['type'] == "AT":
             typ.text = 'G'
+        if m['type'] == "FD":
+            typ.text = 'G'
         if m['type'] == "GS":
             typ.text = 'G'
         if m['type'] == "INS":
             typ.text = 'G'
         if m['type'] == "MNT":
             typ.text = 'G'
+        if m['type'] == "MR":
+            typ.text = 'W'
         if m['type'] == "OTH":
             typ.text = 'G'
         if m['type'] == "SCF":
@@ -249,7 +253,10 @@ def parseItem(m, compendium, args):
 
     if 'strength' in m:
         strength = ET.SubElement(itm, 'strength')
-        strength.text = str(m['strength'])
+        if m['strength']:
+            strength.text = str(m['strength'])
+        else:
+            strength.text = ""
         if m['type'] == "HA":
             m['entries'].append("If the wearer has a Strength score lower than {}, their speed is reduced by 10 feet.".format(m['strength']))
 
