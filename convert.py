@@ -583,7 +583,8 @@ for file in args.inputJSON:
                 m['speed'] = "{} miles per hour ({} miles per day)".format(m['pace'],m['pace']*24)
             else:
                 m['type'] = m['vehicleType']
-                m['ac'] = "Unknown"
+                if 'ac' not in m:
+                    m['ac'] = [ { "ac": "Unknown" } ]
             if ignoreError:
                 try:
                     parseMonster(m, compendium, args)
