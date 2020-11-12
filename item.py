@@ -100,8 +100,8 @@ def parseItem(m, compendium, args):
 
     if 'rarity' in m and m['rarity'] != 'None' and m['rarity'] != 'Unknown' and not args.nohtml:
         rarity = ET.SubElement(itm, 'rarity')
-        rarity.text = str(m['rarity'])
-        if m['rarity'] != 'None' and m['rarity'] != 'Unknown': headings.append(m['rarity'])
+        rarity.text = str(m['rarity']).title()
+        if m['rarity'] != 'None' and m['rarity'] != 'Unknown': headings.append(str(m['rarity']).title())
 
 
     if 'value' in m:
