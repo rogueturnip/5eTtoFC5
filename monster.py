@@ -135,7 +135,12 @@ def parseMonster(m, compendium, args):
                     ) if 'from' in acs or 'condition' in acs else acs['ac']),m,True))
         else:
             acstr.append(str(acs))
-    ac.text = "{} ({})".format(acstr[0],", ".join(acstr[1:])) if len(acstr) > 1 else acstr[0]
+    if len(acstr) > 1:
+        ac.text = "{} ({})".format(acstr[0],", ".join(acstr[1:])) 
+    elif acstr[0]:
+        ac.text = acstr[0]
+    else:
+        ac.text = "0"
 
     hp = ET.SubElement(monster, 'hp')
     if "special" in m['hp']:
@@ -191,17 +196,17 @@ def parseMonster(m, compendium, args):
                     bool)])
 
     statstr = ET.SubElement(monster, 'str')
-    statstr.text = str(m['str'] if 'str' in m else '-')
+    statstr.text = str(m['str'] if 'str' in m else '0')
     statdex = ET.SubElement(monster, 'dex')
-    statdex.text = str(m['dex'] if 'dex' in m else '-')
+    statdex.text = str(m['dex'] if 'dex' in m else '0')
     statcon = ET.SubElement(monster, 'con')
-    statcon.text = str(m['con'] if 'con' in m else '-')
+    statcon.text = str(m['con'] if 'con' in m else '0')
     statint = ET.SubElement(monster, 'int')
-    statint.text = str(m['int'] if 'int' in m else '-')
+    statint.text = str(m['int'] if 'int' in m else '0')
     statwis = ET.SubElement(monster, 'wis')
-    statwis.text = str(m['wis'] if 'wis' in m else '-')
+    statwis.text = str(m['wis'] if 'wis' in m else '0')
     statcha = ET.SubElement(monster, 'cha')
-    statcha.text = str(m['cha'] if 'cha' in m else '-')
+    statcha.text = str(m['cha'] if 'cha' in m else '0')
     if 'isNpc' in m and m['isNpc'] and not args.nohtml:
         npcroll = ET.SubElement(monster, 'role')
         npcroll.text = "ally"
