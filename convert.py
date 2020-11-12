@@ -959,6 +959,11 @@ for file in args.inputJSON:
                 elif type(m['srd']) == str:
                     m['original_name']=m['name']
                     m['name'] = m['srd']
+            if args.onlyofficial:
+                if m['source'] not in args.onlyofficial:
+                    if args.verbose:
+                        print("Skipping unoffical content: {} from {}".format(m['name'],utils.getFriendlySource(m['source'])))
+                    continue
             if ignoreError:
                 try:
                     parseItem(m, compendium, args)

@@ -72,7 +72,7 @@ def parseClass(m, compendium, args):
     SFText.text = "• Weapons: " + weapontext
     SFText = ET.SubElement(StartingFeature, 'text')
     if "tools" in m['startingProficiencies']:
-        SFText.text = "• Tools: " + ", ".join(m['startingProficiencies']['tools'])
+        SFText.text = utils.fixTags("• Tools: " + ", ".join(m['startingProficiencies']['tools']),m,args.nohtml)
     else:
         SFText.text = "• Tools: none"
     SFText = ET.SubElement(StartingFeature, 'text')
@@ -136,7 +136,7 @@ def parseClass(m, compendium, args):
                     SFText.text = "• Weapons: " + MCweapontext
             SFText = ET.SubElement(StartingFeature, 'text')
             if "tools" in m['multiclassing']:
-                MCtooltext = ", ".join(m['multiclassing']['tools'])
+                MCtooltext = utils.fixTags(", ".join(m['multiclassing']['tools']),m,args.nohtml)
             else:
                 MCtooltext = "none"
             SFText.text = "• Tools: " + MCtooltext
@@ -151,12 +151,12 @@ def parseClass(m, compendium, args):
     weapons.text = weapontext
     tools = ET.SubElement(Class, 'tools')
     if "tools" in m['startingProficiencies']:
-        tools.text = ", ".join(m['startingProficiencies']['tools'])
+        tools.text = utils.fixTags(", ".join(m['startingProficiencies']['tools']),m,args.nohtml)
     else:
         tools.text = "none"
     if 'startingEquipment' in m and "goldAlternative" in m['startingEquipment']:
         wealth = ET.SubElement(Class, 'wealth')
-        wealth.text = str(utils.fixTags(m['startingEquipment']['goldAlternative'],m,args.nohtml))
+        wealth.text = utils.fixTags(m['startingEquipment']['goldAlternative'],m,args.nohtml)
     if 'casterProgression' in m:
         FullCaster =[[3,2,0,0,0,0,0,0,0,0],[3,3,0,0,0,0,0,0,0,0],[3,4,2,0,0,0,0,0,0,0],[4,4,3,0,0,0,0,0,0,0],[4,4,3,2,0,0,0,0,0,0],[4,4,3,3,0,0,0,0,0,0],[4,4,3,3,1,0,0,0,0,0],[4,4,3,3,2,0,0,0,0,0],[4,4,3,3,3,1,0,0,0,0],[5,4,3,3,3,2,0,0,0,0],[5,4,3,3,3,2,1,0,0,0],[5,4,3,3,3,2,1,0,0,0],[5,4,3,3,3,2,1,1,0,0],[5,4,3,3,3,2,1,1,0,0],[5,4,3,3,3,2,1,1,1,0],[5,4,3,3,3,2,1,1,1,0],[5,4,3,3,3,2,1,1,1,1],[5,4,3,3,3,3,1,1,1,1],[5,4,3,3,3,3,2,1,1,1],[5,4,3,3,3,3,2,2,1,1]]
         HalfCaster =[[0,0,0,0,0,0],[0,2,0,0,0,0],[0,3,0,0,0,0],[0,3,0,0,0,0],[0,4,2,0,0,0],[0,4,2,0,0,0],[0,4,3,0,0,0],[0,4,3,0,0,0],[0,4,3,2,0,0],[0,4,3,2,0,0],[0,4,3,3,0,0],[0,4,3,3,0,0],[0,4,3,3,1,0],[0,4,3,3,1,0],[0,4,3,3,2,0],[0,4,3,3,2,0],[0,4,3,3,3,1],[0,4,3,3,3,1],[0,4,3,3,3,2],[0,4,3,3,3,2]]
