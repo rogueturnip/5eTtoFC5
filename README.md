@@ -1,4 +1,10 @@
 # 5eTtoFC5
+```
+git remote add upstream https://github.com/gilamran/tsc-watch.git
+git fetch upstream
+git merge upstream/master
+git push
+```
 
 **5eTtoFC5** is a script for converting 5eTools monsters to Lion's Den Fight Club 5 compatible xml files. The usage is explained like this:
 
