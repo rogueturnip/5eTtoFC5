@@ -81,6 +81,9 @@ def parseMonster(m, compendium, args):
 #        if eachmonsters.find('name').text == m['name']:
 #            m['name'] = "{} (DUPLICATE IN {})".format(m['name'],m['source'])
     monster = ET.SubElement(compendium, 'monster')
+    id = ET.SubElement(monster, 'id')
+    id.text = m['source'].lower() + "-" + re.sub(r'\W+', '', m['name']).lower()
+
     name = ET.SubElement(monster, 'name')
     name.text = m['name']
 
@@ -211,6 +214,22 @@ def parseMonster(m, compendium, args):
         npcroll = ET.SubElement(monster, 'role')
         npcroll.text = "ally"
     save = ET.SubElement(monster, 'save')
+    savelist = ET.SubElement(monster, 'savelist')
+
+    if 'save' in m:
+        savestr = ET.SubElement(savelist, 'str')
+        savestr.text = m['save'].get('str', '')
+        savedex = ET.SubElement(savelist, 'dex')
+        savedex.text = m['save'].get('dex', '')
+        savecon = ET.SubElement(savelist, 'con')
+        savecon.text = m['save'].get('con', '')
+        saveint = ET.SubElement(savelist, 'int')
+        saveint.text = m['save'].get('int', '')
+        savewis = ET.SubElement(savelist, 'wis')
+        savewis.text = m['save'].get('wis', '')
+        savecon = ET.SubElement(savelist, 'con')
+        savecon.text = m['save'].get('con', '')
+    
     if 'save' in m:
         save.text = ", ".join(["{} {}".format(str.capitalize(
             key), value) for key, value in m['save'].items()])
