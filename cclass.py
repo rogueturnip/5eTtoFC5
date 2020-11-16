@@ -14,9 +14,10 @@ def parseClass(m, compendium, args):
     stats = {"str":"Strength","dex":"Dexterity","con":"Constitution","int":"Intelligence","wis":"Wisdom","cha":"Charisma"}
     slots=""
     numberofSkills=""
-    if m['source'] == "UASidekicks":
+    if 'hd' not in m:
         m['hd'] = { "number": 1, "faces": 10 }
-        m["startingProficiencies"] = {}   
+    if 'startingProficiencies' not in m:
+        m["startingProficiencies"] = {}
     if 'skills' not in m['startingProficiencies']:
         m['startingProficiencies']['skills'] = []
     Class = ET.SubElement(compendium, 'class')
@@ -96,7 +97,10 @@ def parseClass(m, compendium, args):
             SFText.text = ""
     if not args.srd:
         SFText = ET.SubElement(StartingFeature, 'text')
-        SFText.text = "Source: " + utils.getFriendlySource(m['source']) + " p. " + str(m['page'])
+        if 'page' in m:
+            SFText.text = "Source: " + utils.getFriendlySource(m['source']) + " p. " + str(m['page'])
+        else:
+            SFText.text = "Source: " + utils.getFriendlySource(m['source'])
     if 'multiclassing' in m:
         myattributes = {"level":"1"}
         autolevel = ET.SubElement(Class, 'autolevel', myattributes)
@@ -144,7 +148,10 @@ def parseClass(m, compendium, args):
             SFText.text = ""
         if not args.srd:
             SFText = ET.SubElement(StartingFeature, 'text')
-            SFText.text = "Source: " + utils.getFriendlySource(m['source']) + " p. " + str(m['page'])
+            if 'page' in m:
+                SFText.text = "Source: " + utils.getFriendlySource(m['source']) + " p. " + str(m['page'])
+            else:
+                SFText.text = "Source: " + utils.getFriendlySource(m['source'])
     armor = ET.SubElement(Class, 'armor')
     armor.text = armortext
     weapons = ET.SubElement(Class, 'weapons')
@@ -266,7 +273,8 @@ def parseClass(m, compendium, args):
                                     opt["name"] = of["name"]
                                     opt["entries"] = of["entries"]
                                     opt["source"] = of["source"]
-                                    opt["page"] = of ["page"]
+                                    if 'page' in of:
+                                        opt["page"] = of ["page"]
                                     break
                         elif opt["type"] == "refClassFeature":
                             optRef = opt["classFeature"].split('|')
@@ -277,7 +285,8 @@ def parseClass(m, compendium, args):
                                     opt["name"] = cf["name"]
                                     opt["entries"] = cf["entries"]
                                     opt["source"] = cf["source"]
-                                    opt["page"] = cf ["page"]
+                                    if 'page' in cf:
+                                        opt["page"] = cf ["page"]
                                     break
                         if args.srd:
                             if 'srd' not in opt or not opt['srd']:
@@ -436,8 +445,11 @@ def flatten_json(nested_json, d, Class, args, level, attributes,subclassname='')
                         blank = ET.SubElement(m, 'text')
                         blank.text = ""
                         for item in x["items"]:
-                            flatten(item['name'], m, args, "text")
-                            flatten(item['entry'], m, args, "list")
+                            if type(item) == str:
+                                flatten(item, m, args, "text")
+                            else:
+                                flatten(item['name'], m, args, "text")
+                                flatten(item['entry'], m, args, "list")
                         blank = ET.SubElement(m, 'text')
                         blank.text = ""
                     elif a=="type" and x[a]=="table" and "colLabels" in x:
