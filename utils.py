@@ -595,7 +595,7 @@ def findFluffImage(fluff,m,t='monsterFluff'):
     return None
 
 
-def getFriendlySource(source):
+def getFriendlySource(source,args=None):
     friendly = source
     allbooks = [ "./data/books.json", "./data/adventures.json" ]
     srcfound = True
@@ -637,6 +637,8 @@ def getFriendlySource(source):
         friendly = "Twitter"
     elif source == "ESK":
         friendly = "Essentials Kit"
+    elif source == "TCE":
+        friendly = "Tasha's Cauldron of Everything"
     elif source.startswith("UA"):
         friendly = re.sub(r"(\w)([A-Z])", r"\1 \2", friendly)
         friendly = re.sub(r"U A", r"Unearthed Arcana: ", friendly)
@@ -645,6 +647,12 @@ def getFriendlySource(source):
         friendly = re.sub(r"A L", r"Adventurers League: ", friendly)
     else:
         srcfound = False
+    if args and args.filemeta and 'sources' in args.filemeta:
+        for metasource in args.filemeta['sources']:
+            if metasource['json'] == source:
+                friendly = metasource['full']
+                srcfound = True
+                break
     for books in allbooks:
         if srcfound:
             break
@@ -663,6 +671,17 @@ def getFriendlySource(source):
     if not srcfound:
         print("Could not find source: " + source)
     return friendly
+
+def getPublishedSources():
+    officialsources = []
+    for books in [ "./data/books.json", "./data/adventures.json" ]:
+        with open(books,encoding='utf-8') as f:
+            bks = json.load(f)
+            f.close()
+        key = list(bks.keys())[0]
+        for bk in bks[key]:
+            officialsources.append(bk['source'])
+    return officialsources
 
 def getEntryString(e,m,args):
     if type(e) == dict:
@@ -702,7 +721,9 @@ def getEntryString(e,m,args):
                     else:
                         rowthing.append(getEntryString(r,m,args))
                 text += " | ".join(rowthing) + "\n"
-        elif e["type"] == "item":
+        elif e["type"] == "item" or e["type"] == "itemSub":
+            if "entry" not in e and "entries" in e:
+                e["entry"] = getEntryString(e["entries"],m,args)
             if args.nohtml:
                 text += "• {} {}".format(e["name"]+(":" if e["name"][-1:] not in ".:" else ""),getEntryString(e["entry"],m,args))
             else:

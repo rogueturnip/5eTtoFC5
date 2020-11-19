@@ -145,18 +145,29 @@ def parseSpell(m, compendium, args):
                     continue
                 if args.skipua and c['source'].startswith('UA'):
                     continue
-                if args.onlyofficial:
-                    if c['source'] not in args.onlyofficial:
+                if args.onlyofficial and not args.onlysrc:
+                    if c['source'] not in args.allowedsrc:
                         continue
                 classlist.append(c["name"] + " (UA)" if c["source"].startswith("UA") else c["name"])
+    if "classes" in m and "fromClassListVariant" in m["classes"]:
+        for c in m["classes"]["fromClassListVariant"]:
+                if args.srd and c['source'] != 'PHB':
+                    continue
+                if args.skipua and c['source'].startswith('UA'):
+                    continue
+                if args.onlyofficial and not args.onlysrc:
+                    if c['source'] not in args.allowedsrc:
+                        continue
+                if (c["name"] + " (UA)" if c["source"].startswith("UA") else c["name"]) not in classlist:
+                    classlist.append(c["name"] + " (UA)" if c["source"].startswith("UA") else c["name"])
     if "classes" in m and "fromSubclass" in m["classes"]:
         for c in m["classes"]["fromSubclass"]:
                 if args.srd:
                     continue
                 if args.skipua and (c["class"]["source"].startswith("UA") or c["subclass"]["source"].startswith("UA")):
                     continue
-                if args.onlyofficial:
-                    if c["class"]["source"] not in args.onlyofficial or c["subclass"]["source"] not in args.onlyofficial:
+                if args.onlyofficial and not args.onlysrc:
+                    if c["class"]["source"] not in args.allowedsrc or c["subclass"]["source"] not in args.allowedsrc:
                         continue
                 classlist.append("{} ({})".format(c["class"]["name"] + " (UA)" if c["class"]["source"].startswith("UA") else c["class"]["name"],c["subclass"]["name"]))
     classes.text = ", ".join(classlist)
@@ -172,7 +183,7 @@ def parseSpell(m, compendium, args):
 
     if 'source' in m and not args.srd:
         sourcetext = "{} p. {}".format(
-            utils.getFriendlySource(m['source']), m['page']) if 'page' in m and m['page'] != 0 else utils.getFriendlySource(m['source'])
+            utils.getFriendlySource(m['source'],args), m['page']) if 'page' in m and m['page'] != 0 else utils.getFriendlySource(m['source'],args)
 
         if 'otherSources' in m and m["otherSources"] is not None:
             for s in m["otherSources"]:
@@ -180,7 +191,7 @@ def parseSpell(m, compendium, args):
                     continue
                 sourcetext += ", "
                 sourcetext += "{} p. {}".format(
-                    utils.getFriendlySource(s["source"]), s["page"]) if 'page' in s and s["page"] != 0 else utils.getFriendlySource(s["source"])
+                    utils.getFriendlySource(s["source"],args), s["page"]) if 'page' in s and s["page"] != 0 else utils.getFriendlySource(s["source"],args)
         if 'entries' in m:
             if args.nohtml:
                 m['entries'].append("Source: {}".format(sourcetext))
