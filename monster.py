@@ -227,8 +227,8 @@ def parseMonster(m, compendium, args):
         saveint.text = m['save'].get('int', '')
         savewis = ET.SubElement(savelist, 'wis')
         savewis.text = m['save'].get('wis', '')
-        savecon = ET.SubElement(savelist, 'con')
-        savecon.text = m['save'].get('con', '')
+        savecha = ET.SubElement(savelist, 'cha')
+        savecha.text = m['save'].get('cha', '')
     
     if 'save' in m:
         save.text = ", ".join(["{} {}".format(str.capitalize(
