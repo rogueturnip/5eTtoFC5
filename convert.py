@@ -147,6 +147,7 @@ officialsources = [
     "EGW",
     "MOT"
     ]
+officialsources = utils.getPublishedSources()
 parser.add_argument(
     '--only-official',
     dest="onlyofficial",
@@ -155,6 +156,13 @@ parser.add_argument(
     const=officialsources,
     help="only include officially released content from: " + ", ".join([utils.getFriendlySource(x) for x in officialsources]) )
 parser.add_argument(
+    '--onlysrc',
+    dest="onlysrc",
+    action='store',
+    default=None,
+    nargs=1,
+    help="Limit to specific source")
+parser.add_argument(
     '--temp-dir',
     dest="tempdir",
     action='store',
@@ -162,6 +170,11 @@ parser.add_argument(
     help="directory to use for temporary files when generating Encounter+ compendium" )
 args = parser.parse_args()
 tempdir = None
+if args.onlysrc:
+    args.onlyofficial = args.onlysrc
+    args.allowedsrc = officialsources+args.onlysrc
+else:
+    args.allowedsrc = args.onlyofficial
 if args.combinedoutput and args.combinedoutput.endswith(".compendium"):
     if not args.tempdir:
         tempdir = tempfile.TemporaryDirectory(prefix="5eToE_")
@@ -177,7 +190,7 @@ if args.updatedata:
     classdir = os.path.join(datadir,"class")
     bestiarydir = os.path.join(datadir,"bestiary")
     spellsdir = os.path.join(datadir,"spells")
-    items = [ 'items.json','items-base.json','magicvariants.json','vehicles.json','fluff-vehicles.json','backgrounds.json','fluff-backgrounds.json','feats.json','races.json','fluff-races.json' ]
+    items = [ 'items.json','items-base.json','magicvariants.json','vehicles.json','fluff-vehicles.json','backgrounds.json','fluff-backgrounds.json','feats.json','races.json','fluff-races.json','books.json','adventures.json' ]
 
     try:
         if not os.path.exists(datadir):
@@ -223,7 +236,10 @@ if args.updatedata:
             with open(os.path.join(bestiarydir,v), 'wb') as f:
                 f.write(req.content)
                 f.close()
-
+        req = requests.get(baseurl + "/bestiary/legendarygroups.json")
+        with open(os.path.join(bestiarydir,"legendarygroups.json"), 'wb') as f:
+            f.write(req.content)
+            f.close()
         print("Downloading class index:","/class/index.json")
         req = requests.get(baseurl + "/class/index.json")
         with open(os.path.join(classdir,"index.json"), 'wb') as f:

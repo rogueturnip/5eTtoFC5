@@ -145,18 +145,29 @@ def parseSpell(m, compendium, args):
                     continue
                 if args.skipua and c['source'].startswith('UA'):
                     continue
-                if args.onlyofficial:
-                    if c['source'] not in args.onlyofficial:
+                if args.onlyofficial and not args.onlysrc:
+                    if c['source'] not in args.allowedsrc:
                         continue
                 classlist.append(c["name"] + " (UA)" if c["source"].startswith("UA") else c["name"])
+    if "classes" in m and "fromClassListVariant" in m["classes"]:
+        for c in m["classes"]["fromClassListVariant"]:
+                if args.srd and c['source'] != 'PHB':
+                    continue
+                if args.skipua and c['source'].startswith('UA'):
+                    continue
+                if args.onlyofficial and not args.onlysrc:
+                    if c['source'] not in args.allowedsrc:
+                        continue
+                if (c["name"] + " (UA)" if c["source"].startswith("UA") else c["name"]) not in classlist:
+                    classlist.append(c["name"] + " (UA)" if c["source"].startswith("UA") else c["name"])
     if "classes" in m and "fromSubclass" in m["classes"]:
         for c in m["classes"]["fromSubclass"]:
                 if args.srd:
                     continue
                 if args.skipua and (c["class"]["source"].startswith("UA") or c["subclass"]["source"].startswith("UA")):
                     continue
-                if args.onlyofficial:
-                    if c["class"]["source"] not in args.onlyofficial or c["subclass"]["source"] not in args.onlyofficial:
+                if args.onlyofficial and not args.onlysrc:
+                    if c["class"]["source"] not in args.allowedsrc or c["subclass"]["source"] not in args.allowedsrc:
                         continue
                 classlist.append("{} ({})".format(c["class"]["name"] + " (UA)" if c["class"]["source"].startswith("UA") else c["class"]["name"],c["subclass"]["name"]))
     classes.text = ", ".join(classlist)
