@@ -98,9 +98,9 @@ def parseClass(m, compendium, args):
     if not args.srd:
         SFText = ET.SubElement(StartingFeature, 'text')
         if 'page' in m:
-            SFText.text = "Source: " + utils.getFriendlySource(m['source']) + " p. " + str(m['page'])
+            SFText.text = "Source: " + utils.getFriendlySource(m['source'],args) + " p. " + str(m['page'])
         else:
-            SFText.text = "Source: " + utils.getFriendlySource(m['source'])
+            SFText.text = "Source: " + utils.getFriendlySource(m['source'],args)
     if 'multiclassing' in m:
         myattributes = {"level":"1"}
         autolevel = ET.SubElement(Class, 'autolevel', myattributes)
@@ -149,9 +149,9 @@ def parseClass(m, compendium, args):
         if not args.srd:
             SFText = ET.SubElement(StartingFeature, 'text')
             if 'page' in m:
-                SFText.text = "Source: " + utils.getFriendlySource(m['source']) + " p. " + str(m['page'])
+                SFText.text = "Source: " + utils.getFriendlySource(m['source'],args) + " p. " + str(m['page'])
             else:
-                SFText.text = "Source: " + utils.getFriendlySource(m['source'])
+                SFText.text = "Source: " + utils.getFriendlySource(m['source'],args)
     armor = ET.SubElement(Class, 'armor')
     armor.text = armortext
     weapons = ET.SubElement(Class, 'weapons')
@@ -249,7 +249,7 @@ def parseClass(m, compendium, args):
             if args.onlyofficial:
                 if 'source' in feature and feature['source'] not in args.onlyofficial:
                     if args.verbose:
-                        print("Skipping unoffical content: {} from {}".format(feature['name'],utils.getFriendlySource(feature['source'])))
+                        print("Skipping unoffical content: {} from {}".format(feature['name'],utils.getFriendlySource(feature['source'],args)))
                     if type(featureRef) == dict and "gainSubclassFeature" in featureRef and featureRef["gainSubclassFeature"]==True:
                         currentsubclassFeature += 1
                     continue
@@ -298,7 +298,7 @@ def parseClass(m, compendium, args):
                         if args.onlyofficial:
                             if 'source' in opt and opt['source'] not in args.onlyofficial:
                                 if args.verbose:
-                                    print("Skipping unoffical content: {} from {}".format(opt['name'],utils.getFriendlySource(opt['source'])))
+                                    print("Skipping unoffical content: {} from {}".format(opt['name'],utils.getFriendlySource(opt['source'],args)))
                                 continue
                         sfoptname.text = "{}: {}".format(utils.fixTags(feature["name"],m,args.nohtml),utils.fixTags(opt["name"],m,args.nohtml))
                         flatten_json(opt['entries'],m,sfopt,args, level,attributes)
@@ -307,9 +307,9 @@ def parseClass(m, compendium, args):
                             SFText.text = ""
                             SFText = ET.SubElement(sfopt, 'text')
                             if 'page' in opt:
-                                SFText.text = "Source: " + utils.getFriendlySource(opt['source']) + " p. " + str(opt['page'])
+                                SFText.text = "Source: " + utils.getFriendlySource(opt['source'],args) + " p. " + str(opt['page'])
                             else:
-                                SFText.text = "Source: " + utils.getFriendlySource(opt['source'])
+                                SFText.text = "Source: " + utils.getFriendlySource(opt['source'],args)
                 else:
                     flatten_json(subfeature,m,ft,args, level,attributes)
             if not args.srd:
@@ -317,9 +317,9 @@ def parseClass(m, compendium, args):
                 SFText.text = ""
                 SFText = ET.SubElement(ft, 'text')
                 if 'page' in feature:
-                    SFText.text = "Source: " + utils.getFriendlySource(feature['source']) + " p. " + str(feature['page'])
+                    SFText.text = "Source: " + utils.getFriendlySource(feature['source'],args) + " p. " + str(feature['page'])
                 else:
-                    SFText.text = "Source: " + utils.getFriendlySource(feature['source'])
+                    SFText.text = "Source: " + utils.getFriendlySource(feature['source'],args)
             if type(featureRef) == dict and "gainSubclassFeature" in featureRef and featureRef["gainSubclassFeature"]==True:
                 currentsubclass=0
                 if 'subclasses' not in m:
@@ -337,7 +337,7 @@ def parseClass(m, compendium, args):
                     if args.onlyofficial:
                         if 'source' in subclass and subclass['source'] not in args.onlyofficial:
                             if args.verbose:
-                                print("Skipping unoffical content: {} from {}".format(m['name'],utils.getFriendlySource(m['source'])))
+                                print("Skipping unoffical content: {} from {}".format(m['name'],utils.getFriendlySource(m['source'],args)))
                             currentsubclass += 1
                             continue
                     subclassname=subclass['name']
@@ -377,9 +377,9 @@ def parseClass(m, compendium, args):
                             SFText.text = ""
                             SFText = ET.SubElement(ft, 'text')
                             if 'page' in subclass:
-                                SFText.text = "Source: " + utils.getFriendlySource(subclass['source']) + " p. " + str(subclass['page'])
+                                SFText.text = "Source: " + utils.getFriendlySource(subclass['source'],args) + " p. " + str(subclass['page'])
                             else:
-                                SFText.text = "Source: " + utils.getFriendlySource(subclass['source'])
+                                SFText.text = "Source: " + utils.getFriendlySource(subclass['source'],args)
                         currentsubclass += 1
                     currentsubclassFeature += 1
 
@@ -395,7 +395,7 @@ def flatten_json(nested_json, d, Class, args, level, attributes,subclassname='')
         if args.onlyofficial:
             if 'source' in m and m['source'] not in args.onlyofficial:
                 if args.verbose:
-                    print("Skipping unoffical content: {} from {}".format(m['name'],utils.getFriendlySource(m['source'])))
+                    print("Skipping unoffical content: {} from {}".format(m['name'],utils.getFriendlySource(m['source'],args)))
                 return
         skip=False
         options=False
