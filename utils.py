@@ -6,7 +6,7 @@ import json
 from slugify import slugify
 
 def ordinal(n):
-    return str(n)+("th" if 4<=n%100<=20 else {1:"st",2:"nd",3:"rd"}.get(n%10, "th"))
+    return "%d%s" % (n,"tsnrhtdd"[(n//10%10!=1)*(n%10<4)*n%10::4])
 
 
 def parseRIV(m, t):
