@@ -117,7 +117,10 @@ def getPrereqs(m):
                 prereq.append("{}{}".format(r['name']," ({})".format(r['subrace']) if 'subrace' in r else "").title())
         if 'spell' in pre:
             for s in pre['spell']:
-                prereq.append("The ability to cast {}".format(s))
+                if '#c' in s:
+                    prereq.append("{} cantrip".format(s.replace('#c','').title()))
+                else:    
+                    prereq.append("The ability to cast {}".format(s.title()))
         if 'level' in pre:
             level = pre['level']['level']
             prereq.append("{} level".format(utils.ordinal(level)))
