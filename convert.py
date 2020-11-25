@@ -18,7 +18,7 @@ from cclass import parseClass
 from background import parseBackground
 from feat import parseFeat
 from race import parseRace
-from featureAsFeat import parseInvocation, parseInfusion, parseManeuver
+from featureAsFeat import parseFeature
 
 # Argument Parser
 parser = argparse.ArgumentParser(
@@ -1152,18 +1152,20 @@ for file in args.inputJSON:
                         parseItem(v, compendium, args)
                         iwins += 1
 
-    # Eldritch Invocations
+    # Eldritch Invocations, Artificer Infusions, Maneuvers
     if 'optionalfeature' in d:
         for m in d['optionalfeature']:
+            fType = ""
             if type(m['featureType']) == list:
-                shouldSkip = True
-                for f in m['featureType']:
-                    if "EI" not in f:
-                        shouldSkip = False
-                        break
-                if shouldSkip:
-                    continue
-            elif "EI" not in m['featureType']:
+                if "EI" in m['featureType'][0]:
+                    fType = "EI"
+                elif "AI" in m['featureType'][0]:
+                    fType = "AI"
+                elif "MV" in m['featureType'][0]:
+                    fType = "MV"
+            else:
+                fType = "MV" if "MV" in m['featureType'] else m['featureType']
+            if fType not in ["EI", "AI", "MV"]:
                 continue
             if args.srd:
                 if 'srd' not in m or not m['srd']:
@@ -1184,126 +1186,35 @@ for file in args.inputJSON:
             if m['source'].startswith('UA'):
                 m['original_name'] = m['name']
                 m['name'] = m['name'] + " (UA)"
-            for xmlmon in compendium.findall("./feat[name='Invocation: {}']".format(re.sub(r'\'','*',m['name']))):
+            if fType == "EI": m['name'] = "Invocation: " + m['name']
+            elif fType == "AI": m['name'] = "Infusion: " + m['name']
+            elif fType == "MV": m['name'] = "Maneuver: " + m['name']
+            for xmlmon in compendium.findall("./feat[name='{}']".format(re.sub(r'\'','*',m['name']))):
                 if args.verbose or args.showdupe:
                     print ("Found duplicate entry for {} from {}".format(m['name'],xmlmon.find('source').text if xmlmon.find('source') != None else '--'))
-                eidupe += 1
+                if fType == "EI": eidupe += 1
+                elif fType == "AI": aidupe += 1
+                elif fType == "MV": mvdupe += 1
             
             if ignoreError:
                 try:
-                    parseInvocation(m, compendium, args)
-                    eiwins += 1
+                    parseFeature(m, compendium, args)
+                    if fType == "EI": eiwins += 1
+                    elif fType == "AI": aiwins += 1
+                    elif fType == "MV": mvwins += 1
                 except Exception:
                     print("FAILED: " + m['name'])
-                    eiloss += 1
+                    if fType == "EI": eiloss += 1
+                    elif fType == "AI": ailoss += 1
+                    elif fType == "MV": mvloss += 1
                     continue
             else:
                 if args.verbose:
                     print("Parsing " + m['name'])
-                parseInvocation(m, compendium, args)
-                eiwins += 1
-
-    # Artificer Infusions
-    if 'optionalfeature' in d:
-        for m in d['optionalfeature']:
-            if type(m['featureType']) == list:
-                shouldSkip = True
-                for f in m['featureType']:
-                    if "AI" in f:
-                        shouldSkip = False
-                        break
-                if shouldSkip:
-                    continue
-            elif "AI" not in m['featureType']:
-                continue
-            if args.srd:
-                if 'srd' not in m or not m['srd']:
-                    continue
-                elif type(m['srd']) == str:
-                    m['original_name'] = m['name']
-                    m['name'] = m['srd']
-            if args.skipua:
-                if m['source'].startswith('UA'):
-                    if args.verbose:
-                        print("Skipping UA Content: ",m['name'])
-                    continue
-            if args.onlyofficial:
-                if m['source'] not in args.onlyofficial:
-                    if args.verbose:
-                        print("Skipping unoffical content: {} from {}".format(m['name'],utils.getFriendlySource(m['source'],args)))
-                    continue
-            if m['source'].startswith('UA'):
-                m['original_name'] = m['name']
-                m['name'] = m['name'] + " (UA)"
-            for xmlmon in compendium.findall("./feat[name='Infusion: {}']".format(re.sub(r'\'','*',m['name']))):
-                if args.verbose or args.showdupe:
-                    print ("Found duplicate entry for {} from {}".format(m['name'],xmlmon.find('source').text if xmlmon.find('source') != None else '--'))
-                aidupe += 1
-            
-            if ignoreError:
-                try:
-                    parseInfusion(m, compendium, args)
-                    aiwins += 1
-                except Exception:
-                    print("FAILED: " + m['name'])
-                    ailoss += 1
-                    continue
-            else:
-                if args.verbose:
-                    print("Parsing " + m['name'])
-                parseInfusion(m, compendium, args)
-                aiwins += 1
-
-    # Maneuvers
-    if 'optionalfeature' in d:
-        for m in d['optionalfeature']:
-            if type(m['featureType']) == list:
-                shouldSkip = True
-                for f in m['featureType']:
-                    if "MV:" not in f:
-                        shouldSkip = False
-                        break
-                if shouldSkip:
-                    continue
-            elif "MV:" not in m['featureType']:
-                continue
-            if args.srd:
-                if 'srd' not in m or not m['srd']:
-                    continue
-                elif type(m['srd']) == str:
-                    m['original_name'] = m['name']
-                    m['name'] = m['srd']
-            if args.skipua:
-                if m['source'].startswith('UA'):
-                    if args.verbose:
-                        print("Skipping UA Content: ",m['name'])
-                    continue
-            if args.onlyofficial:
-                if m['source'] not in args.onlyofficial:
-                    if args.verbose:
-                        print("Skipping unoffical content: {} from {}".format(m['name'],utils.getFriendlySource(m['source'],args)))
-                    continue
-            if m['source'].startswith('UA'):
-                m['original_name'] = m['name']
-                m['name'] = m['name'] + " (UA)"
-            for xmlmon in compendium.findall("./feat[name='Maneuver: {}']".format(re.sub(r'\'','*',m['name']))):
-                if args.verbose or args.showdupe:
-                    print ("Found duplicate entry for {} from {}".format(m['name'],xmlmon.find('source').text if xmlmon.find('source') != None else '--'))
-                mvdupe += 1
-            
-            if ignoreError:
-                try:
-                    parseManeuver(m, compendium, args)
-                    mvwins += 1
-                except Exception:
-                    print("FAILED: " + m['name'])
-                    mvloss += 1
-                    continue
-            else:
-                if args.verbose:
-                    print("Parsing " + m['name'])
-                parseManeuver(m, compendium, args)
-                mvwins += 1
+                parseFeature(m, compendium, args)
+                if fType == "EI": eiwins += 1
+                elif fType == "AI": aiwins += 1
+                elif fType == "MV": mvwins += 1
 
     print("Done converting " + os.path.splitext(file)[0])
 
