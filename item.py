@@ -141,13 +141,17 @@ def parseItem(m, compendium, args):
     if 'property' in m: 
         if 'AF' in m['property']:
             headings.append("Ammunication (futuristic)")
-            m['property'] = ['A' if x == 'AF' else x for x in m['property']]
+            m['property'] = list(filter(lambda x: (x != 'AF'), m['property']))
+            if 'A' not in m['property']: 
+                m['property'].append('A')
         if 'RLD' in m['property']:
             headings.append("Reload")
-            m['property'] = ['LD' if x == 'RLD' else x for x in m['property']]
+            m['property'] = list(filter(lambda x: (x != 'RLD'), m['property']))
+            if 'LD' not in m['property']: m['property'].append('LD')
         if 'BF' in m['property']:
             headings.append("Burst Fire")
-            m['property'] = ['R' if x == 'BF' else x for x in m['property']]
+            m['property'] = list(filter(lambda x: (x != 'BF'), m['property']))
+            if 'R' not in m['property']: m['property'].append('R')
         prop.text = ",".join(m['property'])
 
     if 'type' in m:
