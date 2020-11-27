@@ -18,6 +18,7 @@ from cclass import parseClass
 from background import parseBackground
 from feat import parseFeat
 from race import parseRace
+from featureAsFeat import parseFeature
 from collections import defaultdict
 from pprint import pprint
 
